@@ -1,15 +1,18 @@
-# Node
-node_modules/
-
 # Python
 __pycache__/
 *.pyc
 .venv/
 env/
 
-# ML
-*.joblib
+# Node
+node_modules/
+
+# Data / outputs
+pdfs/
+textos/
+*.csv
 
 # OS / IDE
 .DS_Store
 .vscode/
+*.log
