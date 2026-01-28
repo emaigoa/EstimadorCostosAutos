@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Estimador de Autos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100">
+  <div class="mx-auto max-w-3xl px-4 py-10">
+    <header class="mb-8">
+      <h1 class="text-3xl font-bold tracking-tight">Estimador de Autos (Rango)</h1>
+      <p class="mt-2 text-slate-300">
+        Completa los datos y obtené un rango estimado (P10–P90) y el valor central (P50).
+      </p>
+    </header>
+
+    <div class="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-lg">
+      <form id="form" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <!-- Marca -->
+        <div>
+          <label class="mb-1 block text-sm text-slate-300">Marca</label>
+          <select id="marca" class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">Elegí una marca...</option>
+          </select>
+        </div>
+
+        <!-- Modelo -->
+        <div>
+          <label class="mb-1 block text-sm text-slate-300">Modelo</label>
+          <select id="modelo_base" disabled class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none disabled:opacity-50 focus:ring-2 focus:ring-indigo-500">
+            <option value="">Primero elegí marca</option>
+          </select>
+        </div>
+
+        <!-- Año -->
+        <div>
+          <label class="mb-1 block text-sm text-slate-300">Año *</label>
+          <select id="anio" required class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">Elegí año...</option>
+          </select>
+        </div>
+
+        <!-- Kms -->
+        <div>
+          <label class="mb-1 block text-sm text-slate-300">Kilómetros *</label>
+          <input id="kms" type="number" min="0" max="600000" required
+                 class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+                 placeholder="Ej: 120000" />
+        </div>
+
+        <!-- Combustible -->
+        <div>
+          <label class="mb-1 block text-sm text-slate-300">Combustible</label>
+          <select id="combustible" class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">(opcional)</option>
+            <option value="nafta">nafta</option>
+            <option value="diesel">diesel</option>
+            <option value="nafta-gnc">nafta-gnc</option>
+            <option value="gnc">gnc</option>
+          </select>
+        </div>
+
+        <!-- Transmisión -->
+        <div>
+          <label class="mb-1 block text-sm text-slate-300">Transmisión</label>
+          <select id="transmision" class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">(opcional)</option>
+            <option value="MT">MT</option>
+            <option value="AT">AT</option>
+            <option value="CVT">CVT</option>
+          </select>
+        </div>
+
+        <!-- Tipo -->
+        <div>
+          <label class="mb-1 block text-sm text-slate-300">Tipo / Carrocería</label>
+          <input id="tipo" type="text"
+                 class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+                 placeholder="Ej: SUV, Sedan, Hatch, Pickup" />
+        </div>
+
+        <!-- CV -->
+        <div>
+          <label class="mb-1 block text-sm text-slate-300">CV</label>
+          <input id="cv" type="number" min="0" max="500"
+                 class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+                 placeholder="Ej: 105" />
+        </div>
+
+        <!-- Versión -->
+        <div class="sm:col-span-2">
+          <label class="mb-1 block text-sm text-slate-300">Versión / Trim</label>
+          <input id="version_trim" type="text"
+                 class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+                 placeholder="Ej: Comfortline, XEI, Privilege, LTZ..." />
+        </div>
+
+        <!-- Ubicación -->
+        <div class="sm:col-span-2">
+          <label class="mb-1 block text-sm text-slate-300">Ubicación</label>
+          <input id="ubicacion" type="text"
+                 class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+                 placeholder="Ej: Mar Del Plata - Bs.As. Costa Atlantica" />
+        </div>
+
+        <div class="sm:col-span-2 mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <button id="btn" type="submit"
+                  class="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2 font-semibold hover:bg-indigo-500 active:bg-indigo-700">
+            Estimar
+          </button>
+
+          <div class="text-sm text-slate-300">
+            * Campos obligatorios: <span class="font-semibold">Año</span> y <span class="font-semibold">Kms</span>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <!-- Resultados -->
+    <div id="resultWrap" class="mt-6 hidden rounded-2xl border border-white/10 bg-white/5 p-6">
+      <h2 class="text-xl font-semibold">Resultado</h2>
+      <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div class="rounded-xl bg-slate-900/60 p-4">
+          <div class="text-sm text-slate-300">P10</div>
+          <div id="p10" class="text-2xl font-bold">-</div>
+        </div>
+        <div class="rounded-xl bg-slate-900/60 p-4">
+          <div class="text-sm text-slate-300">P50 (central)</div>
+          <div id="p50" class="text-2xl font-bold">-</div>
+        </div>
+        <div class="rounded-xl bg-slate-900/60 p-4">
+          <div class="text-sm text-slate-300">P90</div>
+          <div id="p90" class="text-2xl font-bold">-</div>
+        </div>
+      </div>
+      <p id="rangeText" class="mt-4 text-slate-300"></p>
+    </div>
+
+    <!-- Errores -->
+    <div id="errWrap" class="mt-6 hidden rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-red-200"></div>
+
+    <footer class="mt-10 text-center text-xs text-slate-500">
+      Hecho con FastAPI + modelo cuantílico (P10/P50/P90).
+    </footer>
+  </div>
+
+  <script>
+    // ✅ CAMBIÁ ESTO por tu URL de Render
+    // Ej: https://tu-servicio.onrender.com/predict
+    const API_URL = "http://127.0.0.1:8000/predict";
+
+    // Modelos por marca (arrancá simple y vas agregando)
+    const MODELS_BY_BRAND = {
+      volkswagen: ["Gol", "Polo", "Golf", "Vento", "Bora", "Fox", "Suran", "Up", "T-Cross", "Taos", "Amarok", "Saveiro", "Virtus", "Tiguan"],
+      fiat: ["Uno", "Palio", "Siena", "Cronos", "Argo", "Punto", "Idea", "Fiorino", "Strada", "Toro", "Ducato", "Mobi"],
+      renault: ["Sandero", "Logan", "Kangoo", "Duster", "Clio", "Fluence", "Megane", "Kwid", "Captur", "Koleos", "Alaskan", "Oroch", "Master", "Trafic"],
+      ford: ["Ka", "Fiesta", "Focus", "Mondeo", "EcoSport", "Kuga", "Ranger", "Territory"],
+      chevrolet: ["Corsa", "Classic", "Onix", "Prisma", "Cruze", "S10", "Tracker", "Spin"],
+      peugeot: ["206", "207", "208", "2008", "307", "308", "3008", "5008", "Partner", "Boxer"],
+      toyota: ["Etios", "Yaris", "Corolla", "Corolla Cross", "Hilux", "SW4", "RAV4", "Prius"],
+      citroen: ["C3", "C4", "C4 Cactus", "C-Elysee", "Berlingo", "Jumper", "DS3"],
+      nissan: ["March", "Versa", "Sentra", "Kicks", "X-Trail", "Frontier", "Tiida"],
+      honda: ["Fit", "City", "Civic", "HR-V", "CR-V"]
+    };
+
+    const $ = (id) => document.getElementById(id);
+
+    function fillYears() {
+      const max = 2026;
+      const min = 1970;
+      const sel = $("anio");
+      for (let y = max; y >= min; y--) {
+        const opt = document.createElement("option");
+        opt.value = String(y);
+        opt.textContent = String(y);
+        sel.appendChild(opt);
+      }
+      sel.value = "2017";
+    }
+
+    function fillBrands() {
+      const sel = $("marca");
+      Object.keys(MODELS_BY_BRAND).forEach(b => {
+        const opt = document.createElement("option");
+        opt.value = b;
+        opt.textContent = b.toUpperCase();
+        sel.appendChild(opt);
+      });
+    }
+
+    function resetModels() {
+      const sel = $("modelo_base");
+      sel.innerHTML = "";
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "Primero elegí marca";
+      sel.appendChild(opt);
+      sel.disabled = true;
+    }
+
+    function fillModelsForBrand(brand) {
+      const sel = $("modelo_base");
+      sel.innerHTML = "";
+
+      const first = document.createElement("option");
+      first.value = "";
+      first.textContent = "Elegí modelo...";
+      sel.appendChild(first);
+
+      (MODELS_BY_BRAND[brand] || []).forEach(m => {
+        const opt = document.createElement("option");
+        opt.value = m;
+        opt.textContent = m;
+        sel.appendChild(opt);
+      });
+
+      sel.disabled = false;
+    }
+
+    function numOrNull(v) {
+      const t = String(v ?? "").trim();
+      if (!t) return null;
+      const n = Number(t);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function strOrNull(v) {
+      const t = String(v ?? "").trim();
+      return t ? t : null;
+    }
+
+    function showError(msg) {
+      $("errWrap").textContent = msg;
+      $("errWrap").classList.remove("hidden");
+    }
+
+    function hideError() {
+      $("errWrap").classList.add("hidden");
+      $("errWrap").textContent = "";
+    }
+
+    function showResult({p10, p50, p90}) {
+      $("p10").textContent = `USD ${p10}`;
+      $("p50").textContent = `USD ${p50}`;
+      $("p90").textContent = `USD ${p90}`;
+      $("rangeText").textContent = `Rango sugerido: USD ${p10} – USD ${p90} (central: USD ${p50}).`;
+      $("resultWrap").classList.remove("hidden");
+    }
+
+    // Init
+    fillYears();
+    fillBrands();
+    resetModels();
+    $("kms").value = "120000";
+
+    $("marca").addEventListener("change", (e) => {
+      const brand = e.target.value;
+      if (!brand) return resetModels();
+      fillModelsForBrand(brand);
+    });
+
+    $("form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError();
+      $("resultWrap").classList.add("hidden");
+
+      const payload = {
+        anio: Number($("anio").value),
+        kms: Number($("kms").value),
+
+        // opcionales
+        cv: numOrNull($("cv").value),
+        combustible: strOrNull($("combustible").value),
+        tipo: strOrNull($("tipo").value),
+        transmision: strOrNull($("transmision").value),
+        modelo_base: strOrNull($("modelo_base").value),
+        version_trim: strOrNull($("version_trim").value),
+        ubicacion: strOrNull($("ubicacion").value),
+      };
+
+      // limpiar nulls
+      Object.keys(payload).forEach(k => payload[k] === null && delete payload[k]);
+
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(typeof data === "string" ? data : JSON.stringify(data));
+        }
+
+        showResult(data);
+      } catch (err) {
+        showError("No se pudo estimar. Revisá la URL del API y CORS. Detalle: " + (err.message || err));
+      }
+    });
+  </script>
+</body>
+</html>
