@@ -15,7 +15,7 @@
         Completa los datos y obtené un rango estimado y el valor central sugerido.
       </p>
       <p class="mt-2 text-xs text-slate-400">
-        Nota: Marca/Modelo/Año/Tipo/Versión/CV se ajustan automáticamente según el dataset.
+        Nota: Marca/Modelo/Año/Tipo/Versión/CV se ajustan automáticamente.
       </p>
     </header>
 
@@ -97,11 +97,11 @@
           <label class="mb-1 block text-sm text-slate-300">CV</label>
           <select id="cvSelect" disabled
             class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none disabled:opacity-50 focus:ring-2 focus:ring-indigo-500">
-            <option value="">(opcional) Elegí modelo/versión</option>
+            <option value="">(opcional) Elegí modelo/versión primero</option>
           </select>
           <div id="cvHint" class="mt-1 text-xs text-slate-400 hidden"></div>
           <div class="mt-1 text-xs text-slate-400">
-            Si no lo sabés, dejalo vacío (la API imputa un valor típico).
+            Si no lo sabés, dejalo vacío.
           </div>
         </div>
 
@@ -330,7 +330,7 @@
       const options = byTrim.length ? byTrim : byModel;
 
       if (!options.length) {
-        resetSelect(sel, "(opcional) No hay CV en dataset", true);
+        resetSelect(sel, "No completar para este modelo", true);
         setHint(hint, "");
         return;
       }
@@ -341,7 +341,7 @@
       if (byTrim.length) {
         setHint(hint, `CV sugeridos para la versión "${trim}" (más frecuentes).`);
       } else {
-        setHint(hint, `CV sugeridos para el modelo (más frecuentes).`);
+        setHint(hint, `CV sugeridos para el modelo (completar versión trim para más precisión).`);
       }
     }
 
@@ -394,7 +394,7 @@
 
       // cargar catálogo
       const res = await fetch(CATALOG_URL, { cache: "no-store" });
-      if (!res.ok) throw new Error("No se pudo cargar catalog.json. ¿Está en /front junto a index.html?");
+      if (!res.ok) throw new Error("No se pudo cargar catalog.json");
       CATALOG = await res.json();
       fillBrandsFromCatalog();
     }
