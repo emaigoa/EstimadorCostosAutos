@@ -8,7 +8,7 @@ from pathlib import Path
 
 # ===== PATH ROBUSTO (Render) =====
 BASE_DIR = Path(__file__).resolve().parent
-MODEL_PATH = BASE_DIR / "modelo_rango_autos.joblib"
+MODEL_PATH = BASE_DIR / "models" / "modelo_rango_autos.joblib"
 
 bundle = joblib.load(MODEL_PATH)
 models = bundle["models"]          # {0.10:..., 0.50:..., 0.90:...}
