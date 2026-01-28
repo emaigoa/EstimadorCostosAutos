@@ -14,7 +14,7 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 CSV_PATH = BASE_DIR / "autos_dataset_limpio.csv"
-OUT_PATH = BASE_DIR / "models" / "modelo_rango_autos.joblib"
+OUT_PATH = BASE_DIR / "api" / "models" / "modelo_rango_autos.joblib"
 # ==================
 
 YEAR_REF = 2026
