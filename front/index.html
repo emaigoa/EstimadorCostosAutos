@@ -10,12 +10,12 @@
 <body class="min-h-screen bg-slate-950 text-slate-100">
   <div class="mx-auto max-w-3xl px-4 py-10">
     <header class="mb-8">
-      <h1 class="text-3xl font-bold tracking-tight">Estimador de Autos (Rango)</h1>
+      <h1 class="text-3xl font-bold tracking-tight">Estimador de Autos (con Rango)</h1>
       <p class="mt-2 text-slate-300">
-        Completa los datos y obtené un rango estimado (P10–P90) y el valor central (P50).
+        Completa los datos y obtené un rango estimado y el valor central sugerido.
       </p>
       <p class="mt-2 text-xs text-slate-400">
-        Nota: Marca/Modelo/Año/Tipo/Versión se ajustan automáticamente según lo que existe en tu dataset.
+        Nota: Marca/Modelo/Año/Tipo/Versión se ajustan automáticamente.
       </p>
     </header>
 
@@ -63,10 +63,9 @@
           <select id="combustible"
             class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
             <option value="">(opcional)</option>
-            <option value="nafta">nafta</option>
-            <option value="diesel">diesel</option>
-            <option value="nafta-gnc">nafta-gnc</option>
-            <option value="gnc">gnc</option>
+            <option value="nafta">Nafta</option>
+            <option value="diesel">Diesel</option>
+            <option value="nafta-gnc">Nafta-GNC</option>
           </select>
           <div id="combHint" class="mt-1 text-xs text-slate-400 hidden"></div>
         </div>
@@ -112,7 +111,7 @@
             placeholder="(opcional) Elegí modelo primero" />
           <datalist id="versionList"></datalist>
           <div class="mt-1 text-xs text-slate-400">
-            Se sugieren versiones reales del dataset para el modelo elegido.
+            Se sugieren versiones reales para el modelo elegido.
           </div>
         </div>
 
@@ -142,15 +141,15 @@
       <h2 class="text-xl font-semibold">Resultado</h2>
       <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div class="rounded-xl bg-slate-900/60 p-4">
-          <div class="text-sm text-slate-300">P10</div>
+          <div class="text-sm text-slate-300">Minimo</div>
           <div id="p10" class="text-2xl font-bold">-</div>
         </div>
         <div class="rounded-xl bg-slate-900/60 p-4">
-          <div class="text-sm text-slate-300">P50 (central)</div>
+          <div class="text-sm text-slate-300">Sugerido</div>
           <div id="p50" class="text-2xl font-bold">-</div>
         </div>
         <div class="rounded-xl bg-slate-900/60 p-4">
-          <div class="text-sm text-slate-300">P90</div>
+          <div class="text-sm text-slate-300">Maximo</div>
           <div id="p90" class="text-2xl font-bold">-</div>
         </div>
       </div>
