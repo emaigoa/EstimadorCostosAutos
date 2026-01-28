@@ -15,7 +15,7 @@
         Completa los datos y obtené un rango estimado y el valor central sugerido.
       </p>
       <p class="mt-2 text-xs text-slate-400">
-        Nota: Marca/Modelo/Año/Tipo/Versión se ajustan automáticamente.
+        Nota: Marca/Modelo/Año/Tipo/Versión/CV se ajustan automáticamente según el dataset.
       </p>
     </header>
 
@@ -95,11 +95,13 @@
         <!-- CV -->
         <div>
           <label class="mb-1 block text-sm text-slate-300">CV</label>
-          <input id="cv" type="number" min="0" max="500"
-            class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-            placeholder="Ej: 105 (recomendado)" />
+          <select id="cvSelect" disabled
+            class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none disabled:opacity-50 focus:ring-2 focus:ring-indigo-500">
+            <option value="">(opcional) Elegí modelo/versión</option>
+          </select>
+          <div id="cvHint" class="mt-1 text-xs text-slate-400 hidden"></div>
           <div class="mt-1 text-xs text-slate-400">
-            Tip: si lo sabés, completalo. Mejora MUCHO el precio (ej: Amarok V6 258cv).
+            Si no lo sabés, dejalo vacío (la API imputa un valor típico).
           </div>
         </div>
 
@@ -141,7 +143,7 @@
       <h2 class="text-xl font-semibold">Resultado</h2>
       <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div class="rounded-xl bg-slate-900/60 p-4">
-          <div class="text-sm text-slate-300">Minimo</div>
+          <div class="text-sm text-slate-300">Mínimo</div>
           <div id="p10" class="text-2xl font-bold">-</div>
         </div>
         <div class="rounded-xl bg-slate-900/60 p-4">
@@ -149,7 +151,7 @@
           <div id="p50" class="text-2xl font-bold">-</div>
         </div>
         <div class="rounded-xl bg-slate-900/60 p-4">
-          <div class="text-sm text-slate-300">Maximo</div>
+          <div class="text-sm text-slate-300">Máximo</div>
           <div id="p90" class="text-2xl font-bold">-</div>
         </div>
       </div>
@@ -164,19 +166,17 @@
     </footer>
   </div>
 
-
-
   <script>
-    // ✅ CAMBIÁ ESTO por tu URL de Render
-    // Ej: https://tu-servicio.onrender.com/predict
+    // ✅ tu API en Render
     const API_URL = "https://estimadorcostosautos.onrender.com/predict";
 
+    // ✅ este archivo lo genera tu pipeline y queda en /front junto a index.html
     const CATALOG_URL = "./catalog.json";
 
     const $ = (id) => document.getElementById(id);
     let CATALOG = null;
 
-    function setHint(el, text) {
+        function setHint(el, text) {
       if (!el) return;
       if (!text) {
         el.classList.add("hidden");
@@ -196,8 +196,8 @@
 
       (options || []).forEach(v => {
         const opt = document.createElement("option");
-        opt.value = v;
-        opt.textContent = v;
+        opt.value = String(v);
+        opt.textContent = String(v);
         selectEl.appendChild(opt);
       });
     }
@@ -286,7 +286,7 @@
         });
       }
 
-      // Hints de combustible/transmision sugeridos (no obligan)
+      // Hints de combustible/transmisión sugeridos (no obligan)
       const combHint = $("combHint");
       const tranHint = $("tranHint");
 
@@ -300,6 +300,48 @@
         setHint(tranHint, `Sugeridas: ${info.transmisiones.join(", ")}`);
       } else {
         setHint(tranHint, "");
+      }
+    }
+
+    // ===== CV por modelo/trim (del catalog.json) =====
+    function fillCvForSelection() {
+      const brand = $("marca").value;
+      const model = $("modelo_base").value;
+      const trim = ($("version_trim").value || "").trim();
+
+      const sel = $("cvSelect");
+      const hint = $("cvHint");
+
+      if (!brand || !model) {
+        resetSelect(sel, "(opcional) Elegí modelo/versión", true);
+        setHint(hint, "");
+        return;
+      }
+
+      const info = CATALOG?.[brand]?.[model];
+      if (!info) {
+        resetSelect(sel, "(opcional) No hay datos para ese modelo", true);
+        setHint(hint, "");
+        return;
+      }
+
+      const byModel = info.cv_by_model || [];
+      const byTrim = (info.cv_by_trim && trim && info.cv_by_trim[trim]) ? info.cv_by_trim[trim] : [];
+      const options = byTrim.length ? byTrim : byModel;
+
+      if (!options.length) {
+        resetSelect(sel, "(opcional) No hay CV en dataset", true);
+        setHint(hint, "");
+        return;
+      }
+
+      setOptions(sel, options.map(String), "(opcional) Elegí CV...");
+      sel.disabled = false;
+
+      if (byTrim.length) {
+        setHint(hint, `CV sugeridos para la versión "${trim}" (más frecuentes).`);
+      } else {
+        setHint(hint, `CV sugeridos para el modelo (más frecuentes).`);
       }
     }
 
@@ -338,16 +380,21 @@
       resetSelect($("modelo_base"), "Primero elegí marca", true);
       resetSelect($("anio"), "Elegí modelo primero", true);
       resetSelect($("tipo"), "(opcional) Elegí modelo primero", true);
+      resetSelect($("cvSelect"), "(opcional) Elegí modelo/versión", true);
+
+      $("version_trim").value = "";
       $("version_trim").disabled = true;
+
       setHint($("anioHint"), "");
       setHint($("combHint"), "");
       setHint($("tranHint"), "");
+      setHint($("cvHint"), "");
 
       $("kms").value = "120000";
 
       // cargar catálogo
       const res = await fetch(CATALOG_URL, { cache: "no-store" });
-      if (!res.ok) throw new Error("No se pudo cargar catalog.json. ¿Está dentro de /front junto a index.html?");
+      if (!res.ok) throw new Error("No se pudo cargar catalog.json. ¿Está en /front junto a index.html?");
       CATALOG = await res.json();
       fillBrandsFromCatalog();
     }
@@ -359,11 +406,20 @@
       resetSelect($("modelo_base"), "Primero elegí marca", true);
       resetSelect($("anio"), "Elegí modelo primero", true);
       resetSelect($("tipo"), "(opcional) Elegí modelo primero", true);
+      resetSelect($("cvSelect"), "(opcional) Elegí modelo/versión", true);
+
       $("version_trim").value = "";
       $("version_trim").disabled = true;
+
       setHint($("anioHint"), "");
       setHint($("combHint"), "");
       setHint($("tranHint"), "");
+      setHint($("cvHint"), "");
+
+      // opcional: limpiar selecciones opcionales
+      $("combustible").value = "";
+      $("transmision").value = "";
+      $("ubicacion").value = "";
 
       if (!brand) return;
       fillModels(brand);
@@ -376,15 +432,28 @@
       // reset dependientes
       resetSelect($("anio"), "Elegí modelo primero", true);
       resetSelect($("tipo"), "(opcional) Elegí modelo primero", true);
+      resetSelect($("cvSelect"), "(opcional) Elegí modelo/versión", true);
+
       $("version_trim").value = "";
       $("version_trim").disabled = true;
+
       setHint($("anioHint"), "");
       setHint($("combHint"), "");
       setHint($("tranHint"), "");
+      setHint($("cvHint"), "");
 
       if (!brand || !model) return;
+
       fillYearsFor(brand, model);
       fillTipoVersionFor(brand, model);
+
+      // CV por modelo (sin trim todavía)
+      fillCvForSelection();
+    });
+
+    // cuando el usuario escribe/elige versión, recalculamos CV (por trim si existe)
+    $("version_trim").addEventListener("input", () => {
+      fillCvForSelection();
     });
 
     $("form").addEventListener("submit", async (e) => {
@@ -402,7 +471,6 @@
         return;
       }
 
-      // payload para la API (incluye marca si tu API la acepta)
       const payload = {
         marca,
         modelo_base,
@@ -410,7 +478,7 @@
         kms,
 
         // opcionales
-        cv: numOrNull($("cv").value),
+        cv: numOrNull($("cvSelect").value),
         combustible: strOrNull($("combustible").value),
         tipo: strOrNull($("tipo").value),
         transmision: strOrNull($("transmision").value),
@@ -418,8 +486,8 @@
         ubicacion: strOrNull($("ubicacion").value),
       };
 
-      // limpiar nulls
-      Object.keys(payload).forEach(k => payload[k] === null && delete payload[k]);
+      // limpiar nulls/vacíos
+      Object.keys(payload).forEach(k => (payload[k] === null || payload[k] === "") && delete payload[k]);
 
       try {
         const res = await fetch(API_URL, {

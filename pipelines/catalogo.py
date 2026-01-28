@@ -6,15 +6,25 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 CSV_PATH = BASE_DIR / "autos_dataset_limpio.csv"
 OUT_JSON = BASE_DIR / "front" / "catalog.json"
 
-TOP_MODELS_PER_BRAND = 30     # para evitar “basura” en modelos raros
+TOP_MODELS_PER_BRAND = 30       # evita modelos raros/basura
 TOP_TYPES_PER_MODEL = 12
 TOP_VERSIONS_PER_MODEL = 30
+TOP_CV_PER_MODEL = 8            # sugerencias por modelo
+TOP_CV_PER_TRIM = 8             # sugerencias por trim
 
 def clean_str(x):
     if pd.isna(x):
         return ""
-    s = str(x).strip()
-    return s
+    return str(x).strip()
+
+def top_list(series: pd.Series, top_n: int):
+    return (
+        series.loc[series.ne("")]
+        .value_counts()
+        .head(top_n)
+        .index
+        .tolist()
+    )
 
 def main():
     df = pd.read_csv(CSV_PATH)
@@ -25,9 +35,16 @@ def main():
             df[c] = df[c].map(clean_str)
 
     df = df[df["marca"].ne("") & df["modelo_base"].ne("")].copy()
+
     df["anio"] = pd.to_numeric(df["anio"], errors="coerce")
     df = df[df["anio"].notna()].copy()
     df["anio"] = df["anio"].astype(int)
+
+    # CV numérico
+    if "cv" in df.columns:
+        df["cv"] = pd.to_numeric(df["cv"], errors="coerce")
+    else:
+        df["cv"] = pd.NA
 
     catalog = {}
 
@@ -37,7 +54,8 @@ def main():
 
         brand_entry = {}
         for model in top_models:
-            sm = sub[sub["modelo_base"] == model]
+            sm = sub[sub["modelo_base"] == model].copy()
+
             years = sm["anio"]
             if years.empty:
                 continue
@@ -45,41 +63,41 @@ def main():
             year_min = int(years.min())
             year_max = int(years.max())
 
-            tipos = (
-                sm["tipo"]
-                .loc[sm["tipo"].ne("")]
-                .value_counts()
-                .head(TOP_TYPES_PER_MODEL)
-                .index
-                .tolist()
-            )
+            tipos = top_list(sm["tipo"], TOP_TYPES_PER_MODEL)
+            versiones = top_list(sm["version_trim"], TOP_VERSIONS_PER_MODEL)
+            combustibles = top_list(sm["combustible"], 10)
+            transmisiones = top_list(sm["transmision"], 10)
 
-            versiones = (
-                sm["version_trim"]
-                .loc[sm["version_trim"].ne("")]
-                .value_counts()
-                .head(TOP_VERSIONS_PER_MODEL)
-                .index
-                .tolist()
-            )
+            # ===== CV SUGERIDOS =====
+            tmp = sm.copy()
+            tmp = tmp[tmp["cv"].notna() & (tmp["cv"] > 0)]
+            tmp["cv"] = tmp["cv"].astype(int)
 
-            combustibles = (
-                sm["combustible"]
-                .loc[sm["combustible"].ne("")]
-                .value_counts()
-                .head(10)
-                .index
-                .tolist()
-            )
+            # por modelo (top N)
+            cv_by_model = []
+            cv_median_model = ""
+            if not tmp.empty:
+                cv_by_model = (
+                    tmp["cv"].value_counts()
+                    .head(TOP_CV_PER_MODEL)
+                    .index.tolist()
+                )
+                cv_median_model = int(tmp["cv"].median())
 
-            transmisiones = (
-                sm["transmision"]
-                .loc[sm["transmision"].ne("")]
-                .value_counts()
-                .head(10)
-                .index
-                .tolist()
-            )
+            # por trim (top N por cada trim)
+            cv_by_trim = {}
+            if not tmp.empty and "version_trim" in tmp.columns:
+                for trim, st in tmp.groupby("version_trim"):
+                    trim = (trim or "").strip()
+                    if not trim:
+                        continue
+                    top_cv = (
+                        st["cv"].value_counts()
+                        .head(TOP_CV_PER_TRIM)
+                        .index.tolist()
+                    )
+                    if top_cv:
+                        cv_by_trim[trim] = top_cv
 
             brand_entry[model] = {
                 "year_min": year_min,
@@ -88,6 +106,11 @@ def main():
                 "versiones": versiones,
                 "combustibles": combustibles,
                 "transmisiones": transmisiones,
+
+                # NUEVO: CV sugeridos (por modelo / por trim)
+                "cv_by_model": cv_by_model,
+                "cv_by_trim": cv_by_trim,
+                "cv_median_model": cv_median_model,
             }
 
         catalog[brand] = brand_entry
