@@ -6,12 +6,16 @@
   <title>Estimador de Autos</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
+
 <body class="min-h-screen bg-slate-950 text-slate-100">
   <div class="mx-auto max-w-3xl px-4 py-10">
     <header class="mb-8">
       <h1 class="text-3xl font-bold tracking-tight">Estimador de Autos (Rango)</h1>
       <p class="mt-2 text-slate-300">
         Completa los datos y obtené un rango estimado (P10–P90) y el valor central (P50).
+      </p>
+      <p class="mt-2 text-xs text-slate-400">
+        Nota: Marca/Modelo/Año/Tipo/Versión se ajustan automáticamente según lo que existe en tu dataset.
       </p>
     </header>
 
@@ -20,15 +24,17 @@
         <!-- Marca -->
         <div>
           <label class="mb-1 block text-sm text-slate-300">Marca</label>
-          <select id="marca" class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
-            <option value="">Elegí una marca...</option>
+          <select id="marca"
+            class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">Cargando marcas...</option>
           </select>
         </div>
 
         <!-- Modelo -->
         <div>
           <label class="mb-1 block text-sm text-slate-300">Modelo</label>
-          <select id="modelo_base" disabled class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none disabled:opacity-50 focus:ring-2 focus:ring-indigo-500">
+          <select id="modelo_base" disabled
+            class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none disabled:opacity-50 focus:ring-2 focus:ring-indigo-500">
             <option value="">Primero elegí marca</option>
           </select>
         </div>
@@ -36,77 +42,91 @@
         <!-- Año -->
         <div>
           <label class="mb-1 block text-sm text-slate-300">Año *</label>
-          <select id="anio" required class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
-            <option value="">Elegí año...</option>
+          <select id="anio" required disabled
+            class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none disabled:opacity-50 focus:ring-2 focus:ring-indigo-500">
+            <option value="">Elegí modelo primero</option>
           </select>
+          <div id="anioHint" class="mt-1 text-xs text-slate-400 hidden"></div>
         </div>
 
         <!-- Kms -->
         <div>
           <label class="mb-1 block text-sm text-slate-300">Kilómetros *</label>
           <input id="kms" type="number" min="0" max="600000" required
-                 class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                 placeholder="Ej: 120000" />
+            class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="Ej: 120000" />
         </div>
 
         <!-- Combustible -->
         <div>
           <label class="mb-1 block text-sm text-slate-300">Combustible</label>
-          <select id="combustible" class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
+          <select id="combustible"
+            class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
             <option value="">(opcional)</option>
             <option value="nafta">nafta</option>
             <option value="diesel">diesel</option>
             <option value="nafta-gnc">nafta-gnc</option>
             <option value="gnc">gnc</option>
           </select>
+          <div id="combHint" class="mt-1 text-xs text-slate-400 hidden"></div>
         </div>
 
         <!-- Transmisión -->
         <div>
           <label class="mb-1 block text-sm text-slate-300">Transmisión</label>
-          <select id="transmision" class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
+          <select id="transmision"
+            class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
             <option value="">(opcional)</option>
             <option value="MT">MT</option>
             <option value="AT">AT</option>
             <option value="CVT">CVT</option>
           </select>
+          <div id="tranHint" class="mt-1 text-xs text-slate-400 hidden"></div>
         </div>
 
         <!-- Tipo -->
         <div>
           <label class="mb-1 block text-sm text-slate-300">Tipo / Carrocería</label>
-          <input id="tipo" type="text"
-                 class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                 placeholder="Ej: SUV, Sedan, Hatch, Pickup" />
+          <select id="tipo" disabled
+            class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none disabled:opacity-50 focus:ring-2 focus:ring-indigo-500">
+            <option value="">(opcional) Elegí modelo primero</option>
+          </select>
         </div>
 
         <!-- CV -->
         <div>
           <label class="mb-1 block text-sm text-slate-300">CV</label>
           <input id="cv" type="number" min="0" max="500"
-                 class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                 placeholder="Ej: 105" />
+            class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="Ej: 105 (recomendado)" />
+          <div class="mt-1 text-xs text-slate-400">
+            Tip: si lo sabés, completalo. Mejora MUCHO el precio (ej: Amarok V6 258cv).
+          </div>
         </div>
 
         <!-- Versión -->
         <div class="sm:col-span-2">
           <label class="mb-1 block text-sm text-slate-300">Versión / Trim</label>
-          <input id="version_trim" type="text"
-                 class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                 placeholder="Ej: Comfortline, XEI, Privilege, LTZ..." />
+          <input id="version_trim" list="versionList" disabled
+            class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none disabled:opacity-50 focus:ring-2 focus:ring-indigo-500"
+            placeholder="(opcional) Elegí modelo primero" />
+          <datalist id="versionList"></datalist>
+          <div class="mt-1 text-xs text-slate-400">
+            Se sugieren versiones reales del dataset para el modelo elegido.
+          </div>
         </div>
 
         <!-- Ubicación -->
         <div class="sm:col-span-2">
           <label class="mb-1 block text-sm text-slate-300">Ubicación</label>
           <input id="ubicacion" type="text"
-                 class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-                 placeholder="Ej: Mar Del Plata - Bs.As. Costa Atlantica" />
+            class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="Ej: Mar Del Plata - Bs.As. Costa Atlantica" />
         </div>
 
         <div class="sm:col-span-2 mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <button id="btn" type="submit"
-                  class="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2 font-semibold hover:bg-indigo-500 active:bg-indigo-700">
+            class="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2 font-semibold hover:bg-indigo-500 active:bg-indigo-700">
             Estimar
           </button>
 
@@ -145,77 +165,143 @@
     </footer>
   </div>
 
+
+
   <script>
     // ✅ CAMBIÁ ESTO por tu URL de Render
     // Ej: https://tu-servicio.onrender.com/predict
     const API_URL = "https://estimadorcostosautos.onrender.com/predict";
 
-    // Modelos por marca (arrancá simple y vas agregando)
-    const MODELS_BY_BRAND = {
-      volkswagen: ["Gol", "Polo", "Golf", "Vento", "Bora", "Fox", "Suran", "Up", "T-Cross", "Taos", "Amarok", "Saveiro", "Virtus", "Tiguan"],
-      fiat: ["Uno", "Palio", "Siena", "Cronos", "Argo", "Punto", "Idea", "Fiorino", "Strada", "Toro", "Ducato", "Mobi"],
-      renault: ["Sandero", "Logan", "Kangoo", "Duster", "Clio", "Fluence", "Megane", "Kwid", "Captur", "Koleos", "Alaskan", "Oroch", "Master", "Trafic"],
-      ford: ["Ka", "Fiesta", "Focus", "Mondeo", "EcoSport", "Kuga", "Ranger", "Territory"],
-      chevrolet: ["Corsa", "Classic", "Onix", "Prisma", "Cruze", "S10", "Tracker", "Spin"],
-      peugeot: ["206", "207", "208", "2008", "307", "308", "3008", "5008", "Partner", "Boxer"],
-      toyota: ["Etios", "Yaris", "Corolla", "Corolla Cross", "Hilux", "SW4", "RAV4", "Prius"],
-      citroen: ["C3", "C4", "C4 Cactus", "C-Elysee", "Berlingo", "Jumper", "DS3"],
-      nissan: ["March", "Versa", "Sentra", "Kicks", "X-Trail", "Frontier", "Tiida"],
-      honda: ["Fit", "City", "Civic", "HR-V", "CR-V"]
-    };
+    const CATALOG_URL = "./catalog.json";
 
     const $ = (id) => document.getElementById(id);
+    let CATALOG = null;
 
-    function fillYears() {
-      const max = 2026;
-      const min = 1970;
+    function setHint(el, text) {
+      if (!el) return;
+      if (!text) {
+        el.classList.add("hidden");
+        el.textContent = "";
+      } else {
+        el.textContent = text;
+        el.classList.remove("hidden");
+      }
+    }
+
+    function setOptions(selectEl, options, placeholder = "(opcional)") {
+      selectEl.innerHTML = "";
+      const first = document.createElement("option");
+      first.value = "";
+      first.textContent = placeholder;
+      selectEl.appendChild(first);
+
+      (options || []).forEach(v => {
+        const opt = document.createElement("option");
+        opt.value = v;
+        opt.textContent = v;
+        selectEl.appendChild(opt);
+      });
+    }
+
+    function resetSelect(selectEl, text, disabled = true) {
+      selectEl.innerHTML = "";
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = text;
+      selectEl.appendChild(opt);
+      selectEl.disabled = disabled;
+    }
+
+    function fillBrandsFromCatalog() {
+      const brands = Object.keys(CATALOG || {}).sort((a, b) => a.localeCompare(b));
+      const sel = $("marca");
+      sel.innerHTML = `<option value="">Elegí una marca...</option>`;
+      for (const b of brands) {
+        const opt = document.createElement("option");
+        opt.value = b;
+        opt.textContent = b.toUpperCase();
+        sel.appendChild(opt);
+      }
+    }
+
+    function fillModels(brand) {
+      const models = Object.keys((CATALOG?.[brand]) || {}).sort((a, b) => a.localeCompare(b));
+      const sel = $("modelo_base");
+      sel.disabled = false;
+      setOptions(sel, models, "Elegí modelo...");
+    }
+
+    function fillYearsFor(brand, model) {
+      const info = CATALOG?.[brand]?.[model];
       const sel = $("anio");
-      for (let y = max; y >= min; y--) {
+      const hint = $("anioHint");
+
+      if (!info) {
+        resetSelect(sel, "Elegí modelo primero", true);
+        setHint(hint, "");
+        return;
+      }
+
+      sel.disabled = false;
+      sel.innerHTML = `<option value="">Elegí año...</option>`;
+
+      for (let y = info.year_max; y >= info.year_min; y--) {
         const opt = document.createElement("option");
         opt.value = String(y);
         opt.textContent = String(y);
         sel.appendChild(opt);
       }
-      sel.value = "2017";
+
+      sel.value = String(info.year_max);
+      setHint(hint, `Rango disponible: ${info.year_min}–${info.year_max}`);
     }
 
-    function fillBrands() {
-      const sel = $("marca");
-      Object.keys(MODELS_BY_BRAND).forEach(b => {
-        const opt = document.createElement("option");
-        opt.value = b;
-        opt.textContent = b.toUpperCase();
-        sel.appendChild(opt);
-      });
-    }
+    function fillTipoVersionFor(brand, model) {
+      const info = CATALOG?.[brand]?.[model];
 
-    function resetModels() {
-      const sel = $("modelo_base");
-      sel.innerHTML = "";
-      const opt = document.createElement("option");
-      opt.value = "";
-      opt.textContent = "Primero elegí marca";
-      sel.appendChild(opt);
-      sel.disabled = true;
-    }
+      // Tipo (select)
+      const tipoSel = $("tipo");
+      if (!info) {
+        resetSelect(tipoSel, "(opcional) Elegí modelo primero", true);
+      } else {
+        tipoSel.disabled = false;
+        setOptions(tipoSel, info.tipos || [], "(opcional) Elegí tipo...");
+      }
 
-    function fillModelsForBrand(brand) {
-      const sel = $("modelo_base");
-      sel.innerHTML = "";
+      // Versión (datalist + input)
+      const verInput = $("version_trim");
+      const dl = $("versionList");
+      dl.innerHTML = "";
+      verInput.value = "";
 
-      const first = document.createElement("option");
-      first.value = "";
-      first.textContent = "Elegí modelo...";
-      sel.appendChild(first);
+      if (!info) {
+        verInput.disabled = true;
+        verInput.placeholder = "(opcional) Elegí modelo primero";
+      } else {
+        verInput.disabled = false;
+        verInput.placeholder = "(opcional) Escribí o elegí una versión...";
+        (info.versiones || []).forEach(v => {
+          const opt = document.createElement("option");
+          opt.value = v;
+          dl.appendChild(opt);
+        });
+      }
 
-      (MODELS_BY_BRAND[brand] || []).forEach(m => {
-        const opt = document.createElement("option");
-        opt.value = m;
-        opt.textContent = m;
-        sel.appendChild(opt);
-      });
+      // Hints de combustible/transmision sugeridos (no obligan)
+      const combHint = $("combHint");
+      const tranHint = $("tranHint");
 
-      sel.disabled = false;
+      if (info?.combustibles?.length) {
+        setHint(combHint, `Sugeridos para este modelo: ${info.combustibles.join(", ")}`);
+      } else {
+        setHint(combHint, "");
+      }
+
+      if (info?.transmisiones?.length) {
+        setHint(tranHint, `Sugeridas: ${info.transmisiones.join(", ")}`);
+      } else {
+        setHint(tranHint, "");
+      }
     }
 
     function numOrNull(v) {
@@ -240,7 +326,7 @@
       $("errWrap").textContent = "";
     }
 
-    function showResult({p10, p50, p90}) {
+    function showResult({ p10, p50, p90 }) {
       $("p10").textContent = `USD ${p10}`;
       $("p50").textContent = `USD ${p50}`;
       $("p90").textContent = `USD ${p90}`;
@@ -248,16 +334,58 @@
       $("resultWrap").classList.remove("hidden");
     }
 
-    // Init
-    fillYears();
-    fillBrands();
-    resetModels();
-    $("kms").value = "120000";
+    async function init() {
+      // defaults
+      resetSelect($("modelo_base"), "Primero elegí marca", true);
+      resetSelect($("anio"), "Elegí modelo primero", true);
+      resetSelect($("tipo"), "(opcional) Elegí modelo primero", true);
+      $("version_trim").disabled = true;
+      setHint($("anioHint"), "");
+      setHint($("combHint"), "");
+      setHint($("tranHint"), "");
+
+      $("kms").value = "120000";
+
+      // cargar catálogo
+      const res = await fetch(CATALOG_URL, { cache: "no-store" });
+      if (!res.ok) throw new Error("No se pudo cargar catalog.json. ¿Está dentro de /front junto a index.html?");
+      CATALOG = await res.json();
+      fillBrandsFromCatalog();
+    }
 
     $("marca").addEventListener("change", (e) => {
       const brand = e.target.value;
-      if (!brand) return resetModels();
-      fillModelsForBrand(brand);
+
+      // reset dependientes
+      resetSelect($("modelo_base"), "Primero elegí marca", true);
+      resetSelect($("anio"), "Elegí modelo primero", true);
+      resetSelect($("tipo"), "(opcional) Elegí modelo primero", true);
+      $("version_trim").value = "";
+      $("version_trim").disabled = true;
+      setHint($("anioHint"), "");
+      setHint($("combHint"), "");
+      setHint($("tranHint"), "");
+
+      if (!brand) return;
+      fillModels(brand);
+    });
+
+    $("modelo_base").addEventListener("change", (e) => {
+      const brand = $("marca").value;
+      const model = e.target.value;
+
+      // reset dependientes
+      resetSelect($("anio"), "Elegí modelo primero", true);
+      resetSelect($("tipo"), "(opcional) Elegí modelo primero", true);
+      $("version_trim").value = "";
+      $("version_trim").disabled = true;
+      setHint($("anioHint"), "");
+      setHint($("combHint"), "");
+      setHint($("tranHint"), "");
+
+      if (!brand || !model) return;
+      fillYearsFor(brand, model);
+      fillTipoVersionFor(brand, model);
     });
 
     $("form").addEventListener("submit", async (e) => {
@@ -265,16 +393,28 @@
       hideError();
       $("resultWrap").classList.add("hidden");
 
+      const marca = strOrNull($("marca").value);
+      const modelo_base = strOrNull($("modelo_base").value);
+      const anio = Number($("anio").value);
+      const kms = Number($("kms").value);
+
+      if (!marca || !modelo_base || !anio || !kms) {
+        showError("Completá Marca, Modelo, Año y Kms.");
+        return;
+      }
+
+      // payload para la API (incluye marca si tu API la acepta)
       const payload = {
-        anio: Number($("anio").value),
-        kms: Number($("kms").value),
+        marca,
+        modelo_base,
+        anio,
+        kms,
 
         // opcionales
         cv: numOrNull($("cv").value),
         combustible: strOrNull($("combustible").value),
         tipo: strOrNull($("tipo").value),
         transmision: strOrNull($("transmision").value),
-        modelo_base: strOrNull($("modelo_base").value),
         version_trim: strOrNull($("version_trim").value),
         ubicacion: strOrNull($("ubicacion").value),
       };
@@ -296,9 +436,11 @@
 
         showResult(data);
       } catch (err) {
-        showError("No se pudo estimar. Revisá la URL del API y CORS. Detalle: " + (err.message || err));
+        showError("No se pudo estimar. Detalle: " + (err.message || err));
       }
     });
+
+    init().catch(err => showError(err.message));
   </script>
 </body>
 </html>
