@@ -2,29 +2,110 @@ const { chromium } = require("playwright");
 const fs = require("fs");
 const path = require("path");
 
-// Marcas comunes en Argentina (podés sumar/sacar)
-const BRANDS = [
-  "volkswagen",
-  "fiat",
-  "renault",
-  "ford",
-  "chevrolet",
-  "peugeot",
-  "toyota",
-  "citroen",
-  "nissan",
-  "honda",
+// =====================
+// MARCAS 
+// =====================
+const BRANDS_RAW = [
+  "Agrale",
+  "Alfa Romeo",
+  "Audi",
+  "BAIC",
+  "BMW",
+  "BYD",
+  "Changan",
+  "Chery",
+  "Chevrolet",
+  "Chrysler",
+  "Citroën",
+  "Coradir",
+  "D.S.",
+  "Daewoo",
+  "Daihatsu",
+  "DFSK",
+  "Dodge",
+  "Ferrari",
+  "Fiat",
+  "Ford",
+  "Foton",
+  "GMC",
+  "GWM",
+  "Honda",
+  "Hyundai",
+  "IKA",
+  "IME",
+  "Isuzu",
+  "Iveco",
+  "JAC",
+  "Jaguar",
+  "Jeep",
+  "Jetour",
+  "Kia",
+  "Lancia",
+  "Land Rover",
+  "Lexus",
+  "Lifan",
+  "Lotus",
+  "Mazda",
+  "Mercedes-Benz",
+  "MG",
+  "Mini",
+  "Mitsubishi",
+  "Nissan",
+  "Opel",
+  "Peugeot",
+  "Polaris",
+  "Porsche",
+  "RAM",
+  "Range Rover",
+  "Renault",
+  "Seat",
+  "Sero Electric",
+  "Shineray",
+  "Smart",
+  "SsangYong",
+  "Subaru",
+  "Suzuki",
+  "SWM",
+  "Toyota",
+  "UAZ",
+  "Volkswagen",
+  "Volvo",
 ];
 
-// Combustibles pedidos
-const FUELS = ["nafta", "diesel", "nafta-gnc"];
+// =====================
+// COMBUSTIBLES 
+// =====================
+const FUELS = [
+  "nafta",
+  "diesel",
+  "nafta-gnc",
+  "gnc",
+  "hibrido",
+  "hibrido-diesel",
+  "hibrido-nafta",
+  "electrico",
+];
 
-// Desde 1 hasta 42*48 (=2016), sumando 48
-const START_FROM = 1;
-const END_FROM = 42 * 48; // 2016
-const STEP = 48;
+// =====================
+// TRANSMISIONES 
+// =====================
+const TRANSMISSIONS = ["manual", "automatica", "automatica-secuencial"];
 
-// Settings
+// =====================
+// DIRECCIÓN
+// =====================
+
+const DIRECCION = ["electrica", "asistida", "mecanica", "hidraulica"]
+
+// =====================
+// OTROS
+// =====================
+
+const OTROS = ["con-aire-acondicionado", "con-cristales-electricos"]
+
+// =====================
+// SETTINGS
+// =====================
 const BASE_OUT_DIR = path.join(__dirname, "pdfs");
 const HEADLESS = true;
 const VIEWPORT = { width: 1280, height: 800 };
@@ -38,24 +119,47 @@ function safeName(s) {
     .slice(0, 180);
 }
 
-function pad3(n) {
-  return String(n).padStart(3, "0");
+function slugifyBrand(name) {
+  // Normaliza acentos (Citroën -> Citroen)
+  let s = String(name).trim();
+
+  s = s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, ""); // quita diacríticos
+
+  // Casos con puntos / símbolos
+  s = s.replace(/\./g, ""); // D.S. -> DS
+  s = s.replace(/&/g, "and");
+
+  // Espacios a guiones, doble guion limpieza
+  s = s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/(^-|-$)/g, "");
+
+  return s;
 }
 
-function buildDesdeList() {
-  const list = [];
-  for (let d = START_FROM; d <= END_FROM; d += STEP) list.push(d);
-  return list;
+// Si alguna marca no coincide con el slug real de ML, la corregís acá
+const BRAND_SLUG_OVERRIDES = {
+  "d-s": "ds", // a veces aparece como ds
+  "mercedes-benz": "mercedes-benz",
+  "alfa-romeo": "alfa-romeo",
+  "land-rover": "land-rover",
+  "range-rover": "range-rover",
+  "sero-electric": "sero-electric",
+  "ssangyong": "ssangyong",
+};
+
+function brandToSlug(brandRaw) {
+  const s = slugifyBrand(brandRaw);
+  return BRAND_SLUG_OVERRIDES[s] || s;
 }
 
-// Formato principal (el que usabas): /marca/combustible/marca_Desde_X_...
-function buildUrlWithBrandPrefix(brand, fuel, desde) {
-  return `https://autos.mercadolibre.com.ar/${brand}/${fuel}/${brand}_Desde_${desde}_ITEM*CONDITION_2230581_NoIndex_True`;
-}
-
-// Fallback alternativo: /marca/combustible/_Desde_X_...
-function buildUrlWithoutBrandPrefix(brand, fuel, desde) {
-  return `https://autos.mercadolibre.com.ar/${brand}/${fuel}/_Desde_${desde}_ITEM*CONDITION_2230581_NoIndex_True`;
+// URL final pedida
+function buildUrl(brandSlug, fuel, transmission, direccion, otros) {
+  return `https://autos.mercadolibre.com.ar/${brandSlug}/${fuel}/${transmission}/${direccion}/${otros}/_ITEM*CONDITION_2230581`;
 }
 
 async function acceptCookiesIfAny(page) {
@@ -71,41 +175,25 @@ async function acceptCookiesIfAny(page) {
   }
 }
 
-async function gotoWithFallback(page, primaryUrl, fallbackUrl) {
-  try {
-    await page.goto(primaryUrl, { waitUntil: "domcontentloaded", timeout: 90000 });
-    return primaryUrl;
-  } catch (_) {
-    await page.goto(fallbackUrl, { waitUntil: "domcontentloaded", timeout: 90000 });
-    return fallbackUrl;
-  }
-}
-
-// ✅ Detecta la pantalla de "No encontramos resultados..."
+// Detecta “No encontramos resultados…”
 async function hasNoResults(page) {
-  // La frase de tu captura
   const noResultsTitle = page.getByText(/no encontramos resultados para tu búsqueda/i);
-
-  // A veces MercadoLibre usa otro texto similar
   const altNoResults = page.getByText(/no hay publicaciones que coincidan|sin resultados/i);
 
-  // Espera por si carga tarde
   try {
     await Promise.race([
       noResultsTitle.waitFor({ timeout: 2000 }),
       altNoResults.waitFor({ timeout: 2000 }),
     ]);
-  } catch (_) {
-    // si no aparece, ok
-  }
+  } catch (_) {}
 
-  return (await noResultsTitle.isVisible().catch(() => false)) ||
-         (await altNoResults.isVisible().catch(() => false));
+  return (
+    (await noResultsTitle.isVisible().catch(() => false)) ||
+    (await altNoResults.isVisible().catch(() => false))
+  );
 }
 
 (async () => {
-  const desdeList = buildDesdeList();
-
   fs.mkdirSync(BASE_OUT_DIR, { recursive: true });
 
   const browser = await chromium.launch({ headless: HEADLESS });
@@ -114,69 +202,72 @@ async function hasNoResults(page) {
     userAgent: USER_AGENT,
   });
 
-  let globalIndex = 0;
-  const totalJobs = BRANDS.length * FUELS.length * desdeList.length;
+  const totalJobs = BRANDS_RAW.length * FUELS.length * TRANSMISSIONS.length * DIRECCION.length * OTROS.length;
+  let jobIndex = 0;
 
-  for (const brand of BRANDS) {
+  for (const brandRaw of BRANDS_RAW) {
+    const brandSlug = brandToSlug(brandRaw);
+
     for (const fuel of FUELS) {
-      const outDir = path.join(BASE_OUT_DIR, brand, fuel);
-      fs.mkdirSync(outDir, { recursive: true });
+      for (const transmission of TRANSMISSIONS) {
+        for (const direccion of DIRECCION){
+          for (const otros of OTROS){
+            jobIndex++;
 
-      for (let i = 0; i < desdeList.length; i++) {
-        const desde = desdeList[i];
-        const url1 = buildUrlWithBrandPrefix(brand, fuel, desde);
-        const url2 = buildUrlWithoutBrandPrefix(brand, fuel, desde);
+            const outDir = path.join(BASE_OUT_DIR, brandSlug, fuel, transmission, direccion, otros);
+            fs.mkdirSync(outDir, { recursive: true });
 
-        globalIndex++;
-        const page = await context.newPage();
+            const url = buildUrl(brandSlug, fuel, transmission, direccion, otros);
+            const page = await context.newPage();
 
-        try {
-          console.log(`(${globalIndex}/${totalJobs}) ${brand} | ${fuel} | Desde_${desde}`);
+            try {
+              console.log(`(${jobIndex}/${totalJobs}) ${brandSlug} | ${fuel} | ${transmission} | ${direccion} | ${otros}`);
+              console.log(`   → ${url}`);
 
-          const finalUrl = await gotoWithFallback(page, url1, url2);
-          await acceptCookiesIfAny(page);
+              await page.goto(url, { waitUntil: "domcontentloaded", timeout: 90000 });
+              await acceptCookiesIfAny(page);
 
-          // Dejá respirar a la página
-          await page.waitForTimeout(1200);
+              // dejar que cargue algo
+              await page.waitForTimeout(1200);
 
-          // ✅ Si aparece “No encontramos resultados…”, salteamos
-          if (await hasNoResults(page)) {
-            console.log(`   ⚠️ Sin resultados. Salteo: ${brand}/${fuel}/Desde_${desde}`);
-            break; // pasa al siguiente "desde"
+              // si no hay resultados, salteo
+              if (await hasNoResults(page)) {
+                console.log(`   ⚠️ Sin resultados. Salteo: ${brandSlug}/${fuel}/${transmission}/${direccion}/${otros}`);
+                continue;
+              }
+
+              // intenta esperar a que aparezca el listado (si falla no corta)
+              try {
+                await page.waitForSelector("li.ui-search-layout__item", { timeout: 6000 });
+              } catch (_) {}
+
+              const file = path.join(
+                outDir,
+                `${safeName(`${brandSlug}_${fuel}_${transmission}_${direccion}_${otros}`)}.pdf`
+              );
+
+              await page.pdf({
+                path: file,
+                format: "A4",
+                printBackground: true,
+                margin: { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" },
+                preferCSSPageSize: true,
+              });
+
+              console.log(`   ✅ Guardado: ${file}`);
+            } catch (err) {
+              console.log(
+                `   ❌ Error en ${brandSlug}/${fuel}/${transmission}/${direccion}/${otros}: ${err?.message || err}`
+              );
+            } finally {
+              await page.close().catch(() => {});
+            }
           }
-
-          // Si querés, podés esperar a que aparezca algo del listado
-          // (no es obligatorio, pero ayuda a evitar PDFs vacíos)
-          // Si falla, igual intenta imprimir
-          try {
-            await page.waitForSelector("li.ui-search-layout__item", { timeout: 6000 });
-          } catch (_) {}
-
-          const file = path.join(
-            outDir,
-            `${pad3(i + 1)}_Desde_${desde}_${safeName(finalUrl)}.pdf`
-          );
-
-          await page.pdf({
-            path: file,
-            format: "A4",
-            printBackground: true,
-            margin: { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" },
-            preferCSSPageSize: true,
-          });
-
-          console.log(`   ✅ Guardado: ${file}`);
-        } catch (err) {
-          console.log(
-            `   ❌ Error en ${brand}/${fuel}/Desde_${desde}: ${err?.message || err}`
-          );
-        } finally {
-          await page.close().catch(() => {});
         }
       }
     }
   }
 
   await browser.close();
-  console.log("✅ Listo. PDFs en ./pdfs/<marca>/<combustible>/");
+  console.log("✅ Listo. PDFs en ./pdfs/<marca>/<combustible>/<transmision>/<direccion>/<otros>");
 })();
