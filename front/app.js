@@ -1,5 +1,5 @@
 // ===== CONFIG =====
-const API_URL = "http://localhost:8000/predict";
+const API_URL = "https://estimadorcostosautos.onrender.com/predict";
 
 // liviano: marca -> [modelos]
 const INDEX_URL = "./data/index.json";
