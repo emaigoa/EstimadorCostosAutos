@@ -9,6 +9,7 @@ node_modules/
 
 # Data / outputs
 pdfs/
+pdfs2/
 textos/
 *.csv
 

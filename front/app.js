@@ -1,420 +1,335 @@
-// ✅ tu API en Render (o cambiá a localhost si estás probando)
-const API_URL = "https://estimadorcostosautos.onrender.com/predict";
+// ===== CONFIG =====
+const API_URL = "http://localhost:8000/predict";
 
-// ✅ este archivo lo genera tu pipeline y queda en /front junto a index.html
-const CATALOG_URL = "./catalog.json";
+// liviano: marca -> [modelos]
+const INDEX_URL = "./data/index.json";
+// pesado: por marca, contiene { modelo: meta... }
+const BRAND_URL = (brand) => `./data/brands/${encodeURIComponent(brand)}.json`;
 
+// Cache (localStorage)
+const INDEX_CACHE_KEY = "autos_index_cache_v1";
+const BRAND_CACHE_PREFIX = "autos_brand_cache_v1_";
+const CACHE_TTL_MS = 1000 * 60 * 60 * 24; // 24h
+
+const DEFAULT_COMBUSTIBLES = ["nafta", "diesel", "nafta-gnc", "gnc", "hibrido", "electrico"];
+const DEFAULT_TRANSMISIONES = ["manual", "automatica"];
+const DEFAULT_DIRECCIONES = ["electrica", "asistida", "mecanica", "hidraulica"];
+
+// ===== DOM =====
 const $ = (id) => document.getElementById(id);
-let CATALOG = null;
+function show(el) { el?.classList.remove("hidden"); }
+function hide(el) { el?.classList.add("hidden"); }
 
-function setHint(el, text) {
-  if (!el) return;
-  if (!text) {
-    el.classList.add("hidden");
-    el.textContent = "";
-  } else {
-    el.textContent = text;
-    el.classList.remove("hidden");
-  }
+function setError(msg) {
+  const box = $("errBox");
+  if (!box) return;
+  box.textContent = msg || "";
+  msg ? show(box) : hide(box);
 }
 
-function setOptions(selectEl, options, placeholder = "(opcional)") {
-  selectEl.innerHTML = "";
-  const first = document.createElement("option");
-  first.value = "";
-  first.textContent = placeholder;
-  selectEl.appendChild(first);
+function setLoader(msg) {
+  const loader = $("loader");
+  if (!loader) return;
+  if (!msg) { hide(loader); loader.textContent = ""; return; }
+  loader.textContent = msg;
+  show(loader);
+}
 
-  (options || []).forEach(v => {
-    const opt = document.createElement("option");
-    opt.value = String(v);
-    opt.textContent = String(v);
-    selectEl.appendChild(opt);
+function str(v) {
+  const s = String(v ?? "").trim();
+  return s || null;
+}
+
+function money(x) {
+  return Number(x).toLocaleString("es-AR", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0
   });
 }
 
-function resetSelect(selectEl, text, disabled = true) {
-  selectEl.innerHTML = "";
+function setHint(id, text) {
+  const el = $(id);
+  if (!el) return;
+  el.textContent = text || "";
+}
+
+/**
+ * Render rápido para options (evita repaints infinitos)
+ */
+function setOptions(select, values, placeholder, disableIfEmpty = false) {
+  if (!select) return;
+
+  select.innerHTML = "";
+  const frag = document.createDocumentFragment();
+
   const opt = document.createElement("option");
   opt.value = "";
-  opt.textContent = text;
-  selectEl.appendChild(opt);
-  selectEl.disabled = disabled;
-  selectEl.value = "";
+  opt.textContent = placeholder;
+  frag.appendChild(opt);
+
+  (values || []).forEach((v) => {
+    const o = document.createElement("option");
+    o.value = v;
+    o.textContent = v;
+    frag.appendChild(o);
+  });
+
+  select.appendChild(frag);
+
+  const empty = !(values && values.length);
+  select.disabled = disableIfEmpty && empty;
 }
 
-function showLoader() {
-  const el = $("loader");
-  el.classList.remove("hidden");
-  el.classList.add("flex");
+function resetSelect(sel, placeholder) {
+  setOptions(sel, [], placeholder, true);
 }
 
-function hideLoader() {
-  const el = $("loader");
-  el.classList.add("hidden");
-  el.classList.remove("flex");
-}
-
-function fillBrandsFromCatalog() {
-  const brands = Object.keys(CATALOG || {}).sort((a, b) => a.localeCompare(b));
-  const sel = $("marca");
-  sel.innerHTML = `<option value="">Elegí una marca...</option>`;
-  for (const b of brands) {
-    const opt = document.createElement("option");
-    opt.value = b;
-    opt.textContent = b.toUpperCase();
-    sel.appendChild(opt);
+// ===== Cache helpers =====
+function cacheRead(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.ts || !parsed?.data) return null;
+    if (Date.now() - parsed.ts > CACHE_TTL_MS) return null;
+    return parsed.data;
+  } catch {
+    return null;
   }
 }
 
-function fillModels(brand) {
-  const models = Object.keys((CATALOG?.[brand]) || {}).sort((a, b) => a.localeCompare(b));
-  const sel = $("modelo_base");
-  sel.disabled = false;
-  setOptions(sel, models, "Elegí modelo...");
-  if (models.length === 1) {
-    sel.value = models[0];
-    onModelChange(); // auto cascade
+function cacheWrite(key, data) {
+  try {
+    localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data }));
+  } catch {
+    // si storage no se puede usar, seguimos sin cache
   }
 }
 
-function fillYearsFor(brand, model) {
-  const info = CATALOG?.[brand]?.[model];
-  const sel = $("anio");
-  const hint = $("anioHint");
+// ===== DATA (lazy) =====
+let INDEX = null;            // { brand: [models...] }
+let BRAND_MODELS = null;     // { model: meta... } para la marca seleccionada
+let BRAND_LOADED = null;     // nombre marca actual
 
-  if (!info) {
-    resetSelect(sel, "Elegí modelo primero", true);
-    setHint(hint, "");
-    return;
-  }
+async function loadIndex() {
+  const cached = cacheRead(INDEX_CACHE_KEY);
+  if (cached) { INDEX = cached; return; }
 
-  sel.disabled = false;
-  sel.innerHTML = `<option value="">Elegí año...</option>`;
+  const r = await fetch(INDEX_URL, { cache: "force-cache" });
+  if (!r.ok) throw new Error(`No pude cargar ${INDEX_URL} (HTTP ${r.status})`);
 
-  for (let y = info.year_max; y >= info.year_min; y--) {
-    const opt = document.createElement("option");
-    opt.value = String(y);
-    opt.textContent = String(y);
-    sel.appendChild(opt);
-  }
-
-  sel.value = String(info.year_max);
-  setHint(hint, `Rango disponible: ${info.year_min}–${info.year_max}`);
+  const data = await r.json();
+  INDEX = data;
+  cacheWrite(INDEX_CACHE_KEY, data);
 }
 
-// ✅ Combustible NUNCA desaparece.
-// - si el catálogo trae lista -> usarla
-// - si no trae -> fallback a genéricos
-// - si hay 1 -> autoseleccionar (pero visible)
-function fillCombustibleFor(brand, model) {
-  const info = CATALOG?.[brand]?.[model];
-  const sel = $("combustible");
-  const hint = $("combHint");
-
-  const fuels = (info?.combustibles?.length)
-    ? info.combustibles
-    : ["nafta", "diesel", "nafta-gnc"];
-
-  setOptions(sel, fuels, "(opcional) Elegí combustible...");
-  if (fuels.length === 1) sel.value = fuels[0];
-
-  if (info?.combustibles?.length) {
-    setHint(hint, `Sugeridos para este modelo: ${info.combustibles.join(", ")}`);
-  } else {
-    setHint(hint, "");
-  }
-}
-
-// ✅ Tipo: solo se muestra si hay >1 opción.
-// - 0 -> oculto + disabled
-// - 1 -> oculto + se setea auto
-// - >1 -> visible + enabled
-function fillTipoFor(brand, model) {
-  const info = CATALOG?.[brand]?.[model];
-  const wrap = $("tipoWrap");
-  const sel = $("tipo");
-
-  const tipos = info?.tipos || [];
-
-  if (!info || tipos.length === 0) {
-    wrap.classList.add("hidden");
-    resetSelect(sel, "(opcional) Elegí modelo primero", true);
-    return;
-  }
-
-  if (tipos.length === 1) {
-    wrap.classList.add("hidden");
-    setOptions(sel, tipos, "(auto)");
-    sel.value = tipos[0];
-    sel.disabled = true;
-    return;
-  }
-
-  wrap.classList.remove("hidden");
-  setOptions(sel, tipos, "(opcional) Elegí tipo...");
-  sel.disabled = false;
-  sel.value = "";
-}
-
-// ✅ Trim como LISTADO (select).
-// - muestra opciones reales
-// - si 1 -> autoselecciona
-function fillTrimFor(brand, model) {
-  const info = CATALOG?.[brand]?.[model];
-  const sel = $("version_trim");
-
-  if (!info) {
-    resetSelect(sel, "(opcional) Elegí modelo primero", true);
-    return;
-  }
-
-  const versiones = info.versiones || [];
-  if (!versiones.length) {
-    resetSelect(sel, "(opcional) Sin versiones sugeridas", true);
-    return;
-  }
-
-  sel.disabled = false;
-  setOptions(sel, versiones, "(opcional) Elegí versión...");
-  if (versiones.length === 1) sel.value = versiones[0];
-}
-
-// ✅ CV:
-// - por defecto disabled
-// - si hay 1 opción -> auto y disabled
-// - si hay >1 -> enabled
-function fillCvForSelection() {
-  const brand = $("marca").value;
-  const model = $("modelo_base").value;
-  const trim = ($("version_trim").value || "").trim();
-
-  const sel = $("cvSelect");
-  const hint = $("cvHint");
-
-  if (!brand || !model) {
-    resetSelect(sel, "(opcional) Elegí modelo/versión primero", true);
-    setHint(hint, "");
-    return;
-  }
-
-  const info = CATALOG?.[brand]?.[model];
-  if (!info) {
-    resetSelect(sel, "(opcional) No hay datos para ese modelo", true);
-    setHint(hint, "");
-    return;
-  }
-
-  const byModel = info.cv_by_model || [];
-  const byTrim = (info.cv_by_trim && trim && info.cv_by_trim[trim]) ? info.cv_by_trim[trim] : [];
-  const options = (byTrim.length ? byTrim : byModel).map(String);
-
-  if (!options.length) {
-    resetSelect(sel, "(opcional) Sin CV sugeridos", true);
-    setHint(hint, "");
-    return;
-  }
-
-  setOptions(sel, options, "(opcional) Elegí CV...");
-  // regla pedida:
-  if (options.length === 1) {
-    sel.value = options[0];
-    sel.disabled = true;
-  } else {
-    sel.value = "";
-    sel.disabled = false;
-  }
-
-  if (byTrim.length) {
-    setHint(hint, `CV sugeridos para la versión "${trim}" (más frecuentes).`);
-  } else {
-    setHint(hint, `CV sugeridos para el modelo (completá trim para más precisión).`);
-  }
-}
-
-function fillTranHint(brand, model) {
-  const info = CATALOG?.[brand]?.[model];
-  const tranHint = $("tranHint");
-  if (info?.transmisiones?.length) {
-    setHint(tranHint, `Sugeridas: ${info.transmisiones.join(", ")}`);
-  } else {
-    setHint(tranHint, "");
-  }
-}
-
-function onModelChange() {
-  const brand = $("marca").value;
-  const model = $("modelo_base").value;
-
-  // resets dependientes
-  resetSelect($("anio"), "Elegí modelo primero", true);
-  resetSelect($("tipo"), "(opcional) Elegí modelo primero", true);
-  resetSelect($("version_trim"), "(opcional) Elegí modelo primero", true);
-  resetSelect($("cvSelect"), "(opcional) Elegí modelo/versión primero", true);
-
-  setHint($("anioHint"), "");
-  setHint($("cvHint"), "");
-
-  if (!brand || !model) return;
-
-  fillYearsFor(brand, model);
-  fillCombustibleFor(brand, model);
-  fillTipoFor(brand, model);
-  fillTrimFor(brand, model);
-  fillTranHint(brand, model);
-
-  // CV depende de trim/modelo
-  fillCvForSelection();
-}
-
-function numOrNull(v) {
-  const t = String(v ?? "").trim();
-  if (!t) return null;
-  const n = Number(t);
-  return Number.isFinite(n) ? n : null;
-}
-
-function strOrNull(v) {
-  const t = String(v ?? "").trim();
-  return t ? t : null;
-}
-
-function showError(msg) {
-  $("errWrap").textContent = msg;
-  $("errWrap").classList.remove("hidden");
-}
-
-function hideError() {
-  $("errWrap").classList.add("hidden");
-  $("errWrap").textContent = "";
-}
-
-function showResult({ p10, p50, p90 }) {
-  $("p10").textContent = `USD ${p10}`;
-  $("p50").textContent = `USD ${p50}`;
-  $("p90").textContent = `USD ${p90}`;
-  $("rangeText").textContent = `Rango sugerido: USD ${p10} – USD ${p90} (central: USD ${p50}).`;
-  $("resultWrap").classList.remove("hidden");
-}
-
-async function init() {
-  // defaults
-  resetSelect($("modelo_base"), "Primero elegí marca", true);
-  resetSelect($("anio"), "Elegí modelo primero", true);
-  resetSelect($("tipo"), "(opcional) Elegí modelo primero", true);
-  resetSelect($("version_trim"), "(opcional) Elegí modelo primero", true);
-  resetSelect($("cvSelect"), "(opcional) Elegí modelo/versión primero", true);
-
-  $("tipoWrap").classList.add("hidden");
-
-  setHint($("anioHint"), "");
-  setHint($("combHint"), "");
-  setHint($("tranHint"), "");
-  setHint($("cvHint"), "");
-
-  $("kms").value = "120000";
-
-  // cargar catálogo
-  const res = await fetch(CATALOG_URL, { cache: "no-store" });
-  if (!res.ok) throw new Error("No se pudo cargar catalog.json");
-  CATALOG = await res.json();
-  fillBrandsFromCatalog();
-
-  // combustible: si todavía no hay modelo, dejamos genéricos
-  setOptions($("combustible"), ["nafta", "diesel", "nafta-gnc"], "(opcional) Elegí combustible...");
-}
-
-$("marca").addEventListener("change", () => {
-  const brand = $("marca").value;
-
-  // reset dependientes
-  resetSelect($("modelo_base"), "Primero elegí marca", true);
-  resetSelect($("anio"), "Elegí modelo primero", true);
-  resetSelect($("tipo"), "(opcional) Elegí modelo primero", true);
-  resetSelect($("version_trim"), "(opcional) Elegí modelo primero", true);
-  resetSelect($("cvSelect"), "(opcional) Elegí modelo/versión primero", true);
-
-  $("tipoWrap").classList.add("hidden");
-
-  setHint($("anioHint"), "");
-  setHint($("cvHint"), "");
-
-  // opcional: limpiar algunos
-  $("transmision").value = "";
-  
-
-  // combustible nunca se oculta
-  setOptions($("combustible"), ["nafta", "diesel", "nafta-gnc"], "(opcional) Elegí combustible...");
-  $("combustible").value = "";
-
+async function loadBrand(brand) {
   if (!brand) return;
-  fillModels(brand);
-});
 
-$("modelo_base").addEventListener("change", onModelChange);
+  if (BRAND_LOADED === brand && BRAND_MODELS) return;
 
-// cuando cambia el trim, recalculamos CV (por trim si existe)
-$("version_trim").addEventListener("change", () => {
-  fillCvForSelection();
-});
-
-$("form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  hideError();
-  $("resultWrap").classList.add("hidden");
-
-  const marca = strOrNull($("marca").value);
-  const modelo_base = strOrNull($("modelo_base").value);
-  const anio = Number($("anio").value);
-  const kms = Number($("kms").value);
-
-  if (!marca || !modelo_base || !anio || !kms) {
-    showError("Completá Marca, Modelo, Año y Kms.");
+  const key = BRAND_CACHE_PREFIX + brand;
+  const cached = cacheRead(key);
+  if (cached) {
+    BRAND_LOADED = brand;
+    BRAND_MODELS = cached;
     return;
   }
 
-  const payload = {
-    marca,
-    modelo_base,
-    anio,
-    kms,
+  const r = await fetch(BRAND_URL(brand), { cache: "force-cache" });
+  if (!r.ok) throw new Error(`No pude cargar data de marca "${brand}" (HTTP ${r.status})`);
 
-    // opcionales
-    cv: numOrNull($("cvSelect").value),
-    combustible: strOrNull($("combustible").value),
-    tipo: strOrNull($("tipo").value),
-    transmision: strOrNull($("transmision").value),
-    version_trim: strOrNull($("version_trim").value),
-  };
+  const data = await r.json();
+  BRAND_LOADED = brand;
+  BRAND_MODELS = data;
 
-  // limpiar nulls/vacíos
-  Object.keys(payload).forEach(k => (payload[k] === null || payload[k] === "") && delete payload[k]);
+  cacheWrite(key, data);
+}
 
-  showLoader();
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 300000);
+function getBrands() {
+  return Object.keys(INDEX || {}).sort();
+}
+
+function getModelsForBrand(brand) {
+  return (INDEX?.[brand] || []).slice();
+}
+
+function getMeta(model) {
+  return BRAND_MODELS?.[model] || null;
+}
+
+// ===== INIT =====
+async function init() {
+  // Estado inicial
+  setError("");
+  setLoader("Cargando índice...");
+
+  resetSelect($("modelo_base"), "Elegí marca primero");
+  resetSelect($("anio"), "Elegí modelo primero");
+  resetSelect($("version_trim"), "(opcional) Elegí modelo primero");
+
+  setOptions($("combustible"), DEFAULT_COMBUSTIBLES, "(opcional) Combustible");
+  setOptions($("transmision"), DEFAULT_TRANSMISIONES, "(opcional) Transmisión");
+  setOptions($("direccion"), DEFAULT_DIRECCIONES, "(opcional) Dirección");
+
+  hide($("tipoWrap"));
+  resetSelect($("tipo"), "(opcional) Elegí tipo");
+  setHint("anioHint", "");
 
   try {
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: controller.signal
-    });
+    console.time("loadIndex");
+    await loadIndex();
+    console.timeEnd("loadIndex");
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(typeof data === "string" ? data : JSON.stringify(data));
-    showResult(data);
+    setOptions($("marca"), getBrands(), "Elegí marca.");
+    $("marca").disabled = false;
+
+    setLoader(null);
   } catch (err) {
-    const msg =
-      err?.name === "AbortError"
-        ? "La API tardó demasiado (timeout). Probá de nuevo."
-        : "No se pudo estimar. Detalle: " + (err.message || err);
-    showError(msg);
-  } finally {
-    clearTimeout(timeoutId);
-    hideLoader();
+    console.error(err);
+    setLoader(null);
+    setError(`❌ Error cargando índice: ${err?.message || err}`);
+    return;
   }
-});
 
-init().catch(err => showError(err.message));
+  // ===== events =====
+  $("marca")?.addEventListener("change", async () => {
+    const brand = str($("marca").value);
+
+    setError("");
+    hide($("resultWrap"));
+
+    resetSelect($("modelo_base"), "Elegí marca primero");
+    resetSelect($("anio"), "Elegí modelo primero");
+    resetSelect($("version_trim"), "(opcional) Elegí modelo primero");
+    hide($("tipoWrap"));
+    resetSelect($("tipo"), "(opcional) Elegí tipo");
+    setHint("anioHint", "");
+
+    if (!brand) return;
+
+    // 1) Cargar modelos rápido desde el index liviano
+    const models = getModelsForBrand(brand);
+    setOptions($("modelo_base"), models, "Elegí modelo.");
+
+    // 2) En paralelo cargar data pesada de la marca
+    try {
+      setLoader(`Cargando datos de ${brand}...`);
+      console.time("loadBrand");
+      await loadBrand(brand);
+      console.timeEnd("loadBrand");
+      setLoader(null);
+    } catch (err) {
+      console.error(err);
+      setLoader(null);
+      setError(`❌ Error cargando marca: ${err?.message || err}`);
+    }
+  });
+
+  $("modelo_base")?.addEventListener("change", () => {
+    const model = str($("modelo_base").value);
+
+    setError("");
+    hide($("resultWrap"));
+
+    resetSelect($("anio"), "Elegí modelo primero");
+    resetSelect($("version_trim"), "(opcional) Elegí versión");
+    hide($("tipoWrap"));
+    resetSelect($("tipo"), "(opcional) Elegí tipo");
+    setHint("anioHint", "");
+
+    if (!model) return;
+
+    const meta = getMeta(model);
+    if (!meta) {
+      setError("⚠️ Todavía no cargó la data pesada de la marca. Elegí la marca y esperá un toque.");
+      return;
+    }
+
+    // años
+    const years = [];
+    for (let y = meta.year_max; y >= meta.year_min; y--) years.push(String(y));
+    setOptions($("anio"), years, "Elegí año.");
+    setHint("anioHint", `Rango: ${meta.year_min}–${meta.year_max}`);
+
+    // versión
+    setOptions($("version_trim"), meta.versiones || [], "(opcional) Versión");
+
+    // tipos (si existen)
+    const tipos = meta.tipos || null;
+    if (Array.isArray(tipos) && tipos.length) {
+      show($("tipoWrap"));
+      setOptions($("tipo"), tipos, "(opcional) Tipo");
+    } else {
+      hide($("tipoWrap"));
+      resetSelect($("tipo"), "(opcional) Elegí tipo");
+    }
+
+    // combos override si existen por modelo
+    setOptions($("combustible"), meta.combustibles || DEFAULT_COMBUSTIBLES, "(opcional) Combustible");
+    setOptions($("transmision"), meta.transmisiones || DEFAULT_TRANSMISIONES, "(opcional) Transmisión");
+    setOptions($("direccion"), meta.direcciones || DEFAULT_DIRECCIONES, "(opcional) Dirección");
+  });
+
+  $("form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    setError("");
+    hide($("resultWrap"));
+
+    setLoader("Calculando...");
+
+    try {
+      const payload = {
+        marca: str($("marca").value),
+        modelo_base: str($("modelo_base").value),
+        version_trim: str($("version_trim").value),
+        anio: Number($("anio").value),
+        kms: Number($("kms").value),
+        combustible: str($("combustible").value),
+        transmision: str($("transmision").value),
+        direccion: str($("direccion").value),
+        aire: $("aireChk")?.checked,
+        cristales: $("cristalesChk")?.checked,
+        tipo: str($("tipo")?.value),
+      };
+
+      // limpiar null/NaN
+      Object.keys(payload).forEach((k) => {
+        if (payload[k] == null) delete payload[k];
+        if (typeof payload[k] === "number" && Number.isNaN(payload[k])) delete payload[k];
+      });
+
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(`API error (HTTP ${res.status}) ${txt ? "- " + txt : ""}`);
+      }
+
+      const data = await res.json();
+
+      $("p10").textContent = money(data.p10);
+      $("p50").textContent = money(data.p50);
+      $("p90").textContent = money(data.p90);
+
+      show($("resultWrap"));
+    } catch (err) {
+      console.error(err);
+      setError(`❌ Error al predecir: ${err?.message || err}`);
+    } finally {
+      setLoader(null);
+    }
+  });
+}
+
+init();
+
+// ===== util: limpiar cache si cambiaste los JSON =====
+// En consola (F12) podés correr:
+// localStorage.removeItem("autos_index_cache_v1");
+// Object.keys(localStorage).filter(k=>k.startsWith("autos_brand_cache_v1_")).forEach(k=>localStorage.removeItem(k));

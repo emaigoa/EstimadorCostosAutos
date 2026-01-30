@@ -1,195 +1,243 @@
 <!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Estimador de Autos</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
+<html lang="es-AR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Estimador de precios de autos</title>
 
-<body class="min-h-screen bg-slate-950 text-slate-100">
-  <div class="mx-auto max-w-3xl px-4 py-10">
-    <header class="mb-8">
-      <h1 class="text-3xl font-bold tracking-tight">Estimador de Autos (con Rango)</h1>
-      <p class="mt-2 text-slate-300">
-        Completa los datos y obtené un rango estimado y el valor central sugerido.
-      </p>
-      <p class="mt-2 text-xs text-slate-400">
-        Nota: Marca/Modelo/Año/Tipo/Versión/CV se ajustan automáticamente.
-      </p>
-    </header>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        background: #0b1220;
+        color: #e5e7eb;
+      }
+      .container {
+        max-width: 920px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      .card {
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.10);
+        border-radius: 20px;
+        padding: 20px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+      }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 22px;
+        letter-spacing: 0.2px;
+      }
+      .muted { color: rgba(229,231,235,0.7); font-size: 13px; }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+      @media (max-width: 860px) {
+        .grid { grid-template-columns: 1fr; }
+      }
 
-    <div class="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-lg">
-      <form id="form" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <!-- Marca -->
-        <div>
-          <label class="mb-1 block text-sm text-slate-300">Marca</label>
-          <select id="marca"
-            class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
-            <option value="">Cargando marcas...</option>
-          </select>
-        </div>
+      label {
+        display: block;
+        font-size: 12px;
+        color: rgba(229,231,235,0.7);
+        margin-bottom: 6px;
+      }
+      select, input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.14);
+        background: rgba(255,255,255,0.07);
+        color: #e5e7eb;
+        outline: none;
+      }
+      input::placeholder { color: rgba(229,231,235,0.45); }
 
-        <!-- Modelo -->
-        <div>
-          <label class="mb-1 block text-sm text-slate-300">Modelo</label>
-          <select id="modelo_base" disabled
-            class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none disabled:opacity-50 focus:ring-2 focus:ring-indigo-500">
-            <option value="">Primero elegí marca</option>
-          </select>
-        </div>
+      .row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.10);
+        background: rgba(255,255,255,0.04);
+      }
+      .check input {
+        width: auto;
+      }
 
-         <!-- Versión (AHORA SELECT LISTADO) -->
-         <div class="sm:col-span-2">
-          <label class="mb-1 block text-sm text-slate-300">Versión / Trim</label>
-          <select id="version_trim" disabled
-            class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none disabled:opacity-50 focus:ring-2 focus:ring-indigo-500">
-            <option value="">(opcional) Elegí modelo primero</option>
-          </select>
-          <div class="mt-1 text-xs text-slate-400">
-            Se sugieren versiones reales para el modelo elegido.
+      button {
+        cursor: pointer;
+        border: 0;
+        padding: 10px 14px;
+        border-radius: 12px;
+        background: rgba(255,255,255,0.16);
+        color: #fff;
+        font-weight: 600;
+      }
+      button:hover { background: rgba(255,255,255,0.22); }
+      button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+      .hidden { display: none !important; }
+
+      #loader {
+        margin-top: 12px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.10);
+      }
+
+      #errBox {
+        margin-top: 12px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(239,68,68,0.12);
+        border: 1px solid rgba(239,68,68,0.28);
+        color: #fecaca;
+        white-space: pre-wrap;
+      }
+
+      #resultWrap {
+        margin-top: 14px;
+      }
+      .resultGrid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+      @media (max-width: 860px) {
+        .resultGrid { grid-template-columns: 1fr; }
+      }
+      .pill {
+        border-radius: 16px;
+        padding: 14px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.10);
+      }
+      .pill .k { font-size: 12px; color: rgba(229,231,235,0.7); }
+      .pill .v { font-size: 20px; font-weight: 800; margin-top: 6px; }
+      .hint { margin-top: 6px; font-size: 12px; color: rgba(229,231,235,0.6); }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <div class="card">
+        <h1>Estimador de precios de autos</h1>
+        <div class="muted">Carga rápida: primero índice liviano, y datos por marca cuando la elegís.</div>
+
+        <div id="loader" class="hidden">Cargando...</div>
+        <div id="errBox" class="hidden"></div>
+
+        <form id="form" class="mt">
+          <div class="grid" style="margin-top:16px">
+            <div>
+              <label for="marca">Marca *</label>
+              <select id="marca" required>
+                <option value="">Cargando marcas...</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="modelo_base">Modelo *</label>
+              <select id="modelo_base" required>
+                <option value="">Elegí marca primero</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="anio">Año *</label>
+              <select id="anio" required>
+                <option value="">Elegí modelo primero</option>
+              </select>
+              <div id="anioHint" class="hint"></div>
+            </div>
+
+            <div>
+              <label for="kms">Kilómetros *</label>
+              <input id="kms" type="number" min="0" step="1" placeholder="Ej: 120000" required />
+            </div>
+
+            <div>
+              <label for="version_trim">Versión (opcional)</label>
+              <select id="version_trim">
+                <option value="">(opcional) Elegí modelo primero</option>
+              </select>
+            </div>
+
+            <div id="tipoWrap" class="hidden">
+              <label for="tipo">Tipo (opcional)</label>
+              <select id="tipo">
+                <option value="">(opcional) Elegí tipo</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="combustible">Combustible (opcional)</label>
+              <select id="combustible"></select>
+            </div>
+
+            <div>
+              <label for="transmision">Transmisión (opcional)</label>
+              <select id="transmision"></select>
+            </div>
+
+            <div>
+              <label for="direccion">Dirección (opcional)</label>
+              <select id="direccion"></select>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:14px">
+            <div class="check">
+              <input id="aireChk" type="checkbox" />
+              <label for="aireChk" style="margin:0">Aire</label>
+            </div>
+
+            <div class="check">
+              <input id="cristalesChk" type="checkbox" />
+              <label for="cristalesChk" style="margin:0">Cristales eléctricos</label>
+            </div>
+
+            <button type="submit">Estimar</button>
+          </div>
+        </form>
+
+        <div id="resultWrap" class="hidden">
+          <div class="muted" style="margin-top:14px">Rango estimado (P10/P50/P90):</div>
+          <div class="resultGrid" style="margin-top:10px">
+            <div class="pill">
+              <div class="k">P10 (bajo)</div>
+              <div id="p10" class="v">—</div>
+            </div>
+            <div class="pill">
+              <div class="k">P50 (medio)</div>
+              <div id="p50" class="v">—</div>
+            </div>
+            <div class="pill">
+              <div class="k">P90 (alto)</div>
+              <div id="p90" class="v">—</div>
+            </div>
           </div>
         </div>
-
-
-        <!-- Año -->
-        <div>
-          <label class="mb-1 block text-sm text-slate-300">Año *</label>
-          <select id="anio" required disabled
-            class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none disabled:opacity-50 focus:ring-2 focus:ring-indigo-500">
-            <option value="">Elegí modelo primero</option>
-          </select>
-          <div id="anioHint" class="mt-1 text-xs text-slate-400 hidden"></div>
-        </div>
-
-        <!-- Kms -->
-        <div>
-          <label class="mb-1 block text-sm text-slate-300">Kilómetros *</label>
-          <input id="kms" type="number" min="0" max="600000" required
-            class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
-            placeholder="Ej: 120000" />
-        </div>
-
-        <!-- Combustible (NUNCA se oculta) -->
-        <div>
-          <label class="mb-1 block text-sm text-slate-300">Combustible</label>
-          <select id="combustible"
-            class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
-            <option value="">(opcional)</option>
-          </select>
-          <div id="combHint" class="mt-1 text-xs text-slate-400 hidden"></div>
-        </div>
-
-        <!-- Transmisión -->
-        <div>
-          <label class="mb-1 block text-sm text-slate-300">Transmisión</label>
-          <select id="transmision"
-            class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500">
-            <option value="">(opcional)</option>
-            <option value="MT">MT</option>
-            <option value="AT">AT</option>
-            <option value="CVT">CVT</option>
-          </select>
-          <div id="tranHint" class="mt-1 text-xs text-slate-400 hidden"></div>
-        </div>
-
-        <!-- Tipo (se oculta si 0 o 1 opción) -->
-        <div id="tipoWrap">
-          <label class="mb-1 block text-sm text-slate-300">Tipo / Carrocería</label>
-          <select id="tipo" disabled
-            class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none disabled:opacity-50 focus:ring-2 focus:ring-indigo-500">
-            <option value="">(opcional) Elegí modelo primero</option>
-          </select>
-        </div>
-
-        <!-- CV (bloqueado por defecto; se habilita si hay >1 opciones) -->
-        <div>
-          <label class="mb-1 block text-sm text-slate-300">CV</label>
-          <select id="cvSelect" disabled
-            class="w-full rounded-xl border border-white/10 bg-slate-900/60 px-3 py-2 outline-none disabled:opacity-50 focus:ring-2 focus:ring-indigo-500">
-            <option value="">(opcional) Elegí modelo/versión primero</option>
-          </select>
-          <div id="cvHint" class="mt-1 text-xs text-slate-400 hidden"></div>
-          <div class="mt-1 text-xs text-slate-400">
-            Si no lo sabés, dejalo vacío.
-          </div>
-        </div>
-
-        <div class="sm:col-span-2 mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <button id="btn" type="submit"
-            class="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2 font-semibold hover:bg-indigo-500 active:bg-indigo-700">
-            Estimar
-          </button>
-
-          <div class="text-sm text-slate-300">
-            * Campos obligatorios: <span class="font-semibold">Año</span> y <span class="font-semibold">Kms</span>
-          </div>
-        </div>
-      </form>
-    </div>
-
-    <!-- Resultados -->
-    <div id="resultWrap" class="mt-6 hidden rounded-2xl border border-white/10 bg-white/5 p-6">
-      <h2 class="text-xl font-semibold">Resultado</h2>
-      <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div class="rounded-xl bg-slate-900/60 p-4">
-          <div class="text-sm text-slate-300">Mínimo</div>
-          <div id="p10" class="text-2xl font-bold">-</div>
-        </div>
-        <div class="rounded-xl bg-slate-900/60 p-4">
-          <div class="text-sm text-slate-300">Sugerido</div>
-          <div id="p50" class="text-2xl font-bold">-</div>
-        </div>
-        <div class="rounded-xl bg-slate-900/60 p-4">
-          <div class="text-sm text-slate-300">Máximo</div>
-          <div id="p90" class="text-2xl font-bold">-</div>
-        </div>
-      </div>
-      <p id="rangeText" class="mt-4 text-slate-300"></p>
-    </div>
-
-    <!-- Errores -->
-    <div id="errWrap" class="mt-6 hidden rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-red-200"></div>
-
-    <footer class="mt-10 text-center text-xs text-slate-500">
-      Hecho con FastAPI + modelo cuantílico (P10/P50/P90).
-    </footer>
-  </div>
-
-  <!-- LOADER (Tenor) -->
-  <div id="loader" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm">
-    <div class="w-[320px] max-w-[90vw] rounded-2xl border border-white/10 bg-slate-950/70 p-5 text-center shadow-2xl">
-      <div class="text-sm font-semibold text-slate-200">Cargando estimación…</div>
-      <div class="mt-2 text-xs text-slate-400">
-        Cargando su estimación............
-      </div>
-
-      <div class="mt-4">
-        <div class="tenor-gif-embed"
-          data-postid="16662338746094559779"
-          data-share-method="host"
-          data-aspect-ratio="1"
-          data-width="100%">
-          <a href="https://tenor.com/view/car-cute-driving-electric-funny-gif-16662338746094559779">Car Cute Sticker</a>
-          from <a href="https://tenor.com/search/car-stickers">Car Stickers</a>
-        </div>
-      </div>
-
-      <div class="mt-4">
-        <div class="mx-auto h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-          <div class="h-full w-1/2 animate-pulse rounded-full bg-indigo-500/70"></div>
-        </div>
-        <div class="mt-2 text-[11px] text-slate-500">
-          Si tarda demasiado, probá de nuevo (La primera vez siempre tarda más).
-        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Tenor script -->
-  <script async src="https://tenor.com/embed.js"></script>
-
-  <!-- JS separado -->
-  <script src="./app.js"></script>
-</body>
+    <!-- IMPORTANTE: defer para que el HTML renderice aunque el JS falle -->
+    <script defer src="./app.js"></script>
+  </body>
 </html>

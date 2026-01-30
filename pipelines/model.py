@@ -10,18 +10,17 @@ import unicodedata
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.ensemble import GradientBoostingRegressor
-from pathlib import Path
 
+# ===== PATHS =====
 BASE_DIR = Path(__file__).resolve().parent.parent
 CSV_PATH = BASE_DIR / "autos_dataset_limpio.csv"
 OUT_PATH = BASE_DIR / "api" / "models" / "modelo_rango_autos.joblib"
-# ==================
 
+# ===== LIMITES =====
 YEAR_REF = 2026
 MIN_YEAR = 1970
 MAX_YEAR = 2026
 MAX_KMS = 600_000
-# ==================
 
 
 def safe_numeric(df: pd.DataFrame, cols: list[str]) -> None:
@@ -42,9 +41,11 @@ def strip_accents(s: str) -> str:
 
 def norm_text(s: str) -> str:
     """
-    Normalización consistente para que:
-    - 'T-cross', 'T-Cross', 't cross' => 't cross'
-    - quita acentos, lower, trim, colapsa espacios, guiones -> espacio
+    Normalización consistente:
+    - quita acentos
+    - lower
+    - guiones -> espacio
+    - colapsa espacios
     """
     if s is None:
         return ""
@@ -56,67 +57,77 @@ def norm_text(s: str) -> str:
     return s
 
 
+def to_bool01(x) -> int:
+    s = norm_text(x)
+    if s in {"true", "verdadero", "1", "si", "sí", "yes", "y"}:
+        return 1
+    if s in {"false", "falso", "0", "no", "n"}:
+        return 0
+    # si viene vacío o raro -> 0
+    return 0
+
+
 def prepare_ml_table(df: pd.DataFrame):
     # --- numéricos ---
-    safe_numeric(df, ["precio_usd", "anio", "kms", "precio_origen", "cv"])
+    safe_numeric(df, ["precio_usd", "anio", "kms"])
+
+    # --- bools a 0/1 ---
+    if "aire" in df.columns:
+        df["aire"] = df["aire"].apply(to_bool01).astype(int)
+    else:
+        df["aire"] = 0
+
+    # puede venir como "vidrio" o "cristales" (por las dudas)
+    if "vidrio" in df.columns:
+        df["vidrio"] = df["vidrio"].apply(to_bool01).astype(int)
+    elif "cristales" in df.columns:
+        df["vidrio"] = df["cristales"].apply(to_bool01).astype(int)
+    else:
+        df["vidrio"] = 0
 
     # --- filtros mínimos ---
     df = df[df["precio_usd"].notna() & (df["precio_usd"] > 0)].copy()
     df = df[df["anio"].between(MIN_YEAR, MAX_YEAR)].copy()
     df = df[df["kms"].between(0, MAX_KMS)].copy()
 
-    # --- normalizar categóricas IMPORTANTES ---
-    # (esto es CLAVE para que los freq_maps no den 0 por diferencias de escritura)
-    cat_cols = ["marca", "modelo_base", "version_trim", "ubicacion", "combustible", "tipo", "transmision"]
+    # --- normalizar categóricas reales del CSV ---
+    cat_cols = ["marca", "modelo", "version", "combustible", "transmision", "direccion"]
     for c in cat_cols:
         if c in df.columns:
             df[c] = df[c].map(norm_text)
+        else:
+            df[c] = ""
 
     # --- features derivadas ---
     df["edad"] = YEAR_REF - df["anio"]
     df["kms_por_anio"] = df["kms"] / df["edad"].clip(lower=1)
 
-    # --- cv imputación (mejor: por modelo_base primero, luego global) ---
-    cv_global_median = df["cv"].median() if "cv" in df.columns else np.nan
-
-    median_cv_by_model = {}
-    if "cv" in df.columns and "modelo_base" in df.columns:
-        median_cv_by_model = df.groupby("modelo_base")["cv"].median().dropna().to_dict()
-        df["cv"] = df.apply(
-            lambda r: median_cv_by_model.get(r["modelo_base"], np.nan) if pd.isna(r["cv"]) else r["cv"],
-            axis=1
-        )
-
-    if "cv" in df.columns:
-        df["cv"] = df["cv"].fillna(cv_global_median).fillna(0)
-
     # --- frecuencia (guardar mapas para predict) ---
     freq_maps = {}
-    for col in ["marca", "modelo_base", "version_trim", "ubicacion"]:
-        if col in df.columns:
-            vc = df[col].value_counts()
-            freq_maps[col] = vc.to_dict()
-            df[col + "_freq"] = df[col].map(vc).fillna(0).astype(int)
+    for col in ["marca", "modelo", "version"]:
+        vc = df[col].value_counts()
+        freq_maps[col] = vc.to_dict()
+        df[col + "_freq"] = df[col].map(vc).fillna(0).astype(int)
 
-    # --- one-hot (incluimos marca) ---
-    onehot_cols = [c for c in ["marca", "combustible", "tipo", "transmision"] if c in df.columns]
-    df_ml = pd.get_dummies(df, columns=onehot_cols, drop_first=True)
+    # --- one-hot (más estables / pocas categorías) ---
+    onehot_cols = ["marca", "combustible", "transmision", "direccion"]
+    df_ml = pd.get_dummies(df, columns=[c for c in onehot_cols if c in df.columns], drop_first=True)
 
     onehot_feature_cols = [
         c for c in df_ml.columns
         if c.startswith("marca_")
         or c.startswith("combustible_")
-        or c.startswith("tipo_")
         or c.startswith("transmision_")
+        or c.startswith("direccion_")
     ]
 
     # --- features finales ---
     base_features = [
-        "anio", "edad", "kms", "kms_por_anio", "cv",
-        "marca_freq", "modelo_base_freq", "version_trim_freq", "ubicacion_freq",
+        "anio", "edad", "kms", "kms_por_anio",
+        "aire", "vidrio",
+        "marca_freq", "modelo_freq", "version_freq",
     ]
     base_features = [c for c in base_features if c in df_ml.columns]
-
     features = base_features + onehot_feature_cols
 
     X = df_ml[features].copy()
@@ -130,10 +141,14 @@ def prepare_ml_table(df: pd.DataFrame):
         "features": features,
         "freq_maps": freq_maps,
         "onehot_feature_cols": onehot_feature_cols,
-        "cv_global_median": float(cv_global_median) if pd.notna(cv_global_median) else 0.0,
-        "median_cv_by_model": median_cv_by_model,
-        # para que en la API uses la misma normalización:
-        "text_norm": "lower+no_accents+hyphen_to_space+collapse_spaces"
+        "text_norm": "lower+no_accents+hyphen_to_space+collapse_spaces",
+        "bool_norm": "true/verdadero/1/si => 1 else 0",
+        "schema": {
+            "expected_cols": [
+                "marca", "modelo", "version", "anio", "kms", "precio_usd",
+                "combustible", "transmision", "direccion", "aire", "vidrio"
+            ]
+        }
     }
 
     return X, y, preproc
@@ -186,6 +201,8 @@ def main():
         "models": models,
         "preproc": preproc
     }
+
+    OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(bundle, OUT_PATH)
     print("\n✅ Guardado en:", OUT_PATH.resolve())
 
