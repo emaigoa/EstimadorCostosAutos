@@ -1,7 +1,10 @@
 // ===== CONFIG =====
 const API_URL = "https://estimadorcostosautos.onrender.com/predict";
-const INDEX_URL = "data/index.json";
-const BRAND_URL = (brand) => `data/brands/${encodeURIComponent(brand)}.json`;
+
+// Rutas robustas (no dependen de /ruta/actual/)
+const BASE_URL = new URL(".", window.location.href);
+const INDEX_URL = new URL("data/index.json", BASE_URL).href;
+const BRAND_URL = (brand) => new URL(`data/brands/${encodeURIComponent(brand)}.json`, BASE_URL).href;
 
 const INDEX_CACHE_KEY = "autos_index_cache_v1";
 const BRAND_CACHE_PREFIX = "autos_brand_cache_v1_";
@@ -108,9 +111,14 @@ function cacheRead(key) {
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return null;
+
     const parsed = JSON.parse(raw);
-    if (!parsed?.ts || !parsed?.data) return null;
+
+    // ✅ FIX: aceptar data aunque sea {} o []
+    if (!parsed?.ts || !("data" in parsed)) return null;
+
     if (Date.now() - parsed.ts > CACHE_TTL_MS) return null;
+
     return parsed.data;
   } catch {
     return null;
@@ -130,13 +138,19 @@ let BRAND_LOADED = null;
 
 async function loadIndex() {
   const cached = cacheRead(INDEX_CACHE_KEY);
-  if (cached) { INDEX = cached; return; }
+  if (cached) {
+    INDEX = cached;
+    return;
+  }
 
-  const r = await fetch(INDEX_URL, { cache: "force-cache" });
+  const r = await fetch(INDEX_URL, { cache: "no-store" });
   if (!r.ok) throw new Error(`No pude cargar ${INDEX_URL} (HTTP ${r.status})`);
   const data = await r.json();
   INDEX = data;
   cacheWrite(INDEX_CACHE_KEY, data);
+
+  // Debug opcional:
+  // console.log("INDEX brands:", Object.keys(INDEX || {}).length);
 }
 
 async function loadBrand(brand) {
@@ -151,12 +165,17 @@ async function loadBrand(brand) {
     return;
   }
 
-  const r = await fetch(BRAND_URL(brand), { cache: "force-cache" });
+  const r = await fetch(BRAND_URL(brand), { cache: "no-store" });
   if (!r.ok) throw new Error(`No pude cargar data de marca "${brand}" (HTTP ${r.status})`);
   const data = await r.json();
+
   BRAND_LOADED = brand;
   BRAND_MODELS = data;
+
   cacheWrite(key, data);
+
+  // Debug opcional:
+  // console.log("BRAND_LOADED:", brand, "models:", Object.keys(data || {}).length);
 }
 
 function getBrands() { return Object.keys(INDEX || {}).sort(); }
@@ -191,34 +210,44 @@ async function init() {
     return;
   }
 
-  // Marca change
+  // ===== Marca change (FIX TIMING) =====
   $("marca")?.addEventListener("change", async () => {
     const brand = str($("marca").value);
 
     setError("");
     hide($("resultWrap"));
 
-    resetSelect($("modelo_base"), "Elegí marca primero");
+    // reset UI
+    resetSelect($("modelo_base"), brand ? "Cargando modelos..." : "Elegí marca primero");
     resetSelect($("anio"), "Elegí modelo primero");
     resetSelect($("version_trim"), "(opcional) Elegí modelo primero");
     hide($("tipoWrap"));
     resetSelect($("tipo"), "(opcional) Elegí tipo");
     setHint("anioHint", "");
 
+    // bloquear mientras carga
+    if ($("modelo_base")) $("modelo_base").disabled = true;
+    if ($("anio")) $("anio").disabled = true;
+    if ($("version_trim")) $("version_trim").disabled = true;
+    if ($("tipo")) $("tipo").disabled = true;
+
     if (!brand) return;
 
-    setOptions($("modelo_base"), getModelsForBrand(brand), "Elegí modelo...");
-
-    // data pesada por marca (sin loader)
     try {
+      // ✅ primero cargar JSON pesado de marca
       await loadBrand(brand);
+
+      // ✅ recién ahora habilitar modelos
+      setOptions($("modelo_base"), getModelsForBrand(brand), "Elegí modelo...");
+      $("modelo_base").disabled = false;
     } catch (err) {
       console.error(err);
       setError(`❌ Error cargando marca: ${err?.message || err}`);
+      resetSelect($("modelo_base"), "Error cargando marca");
     }
   });
 
-  // Modelo change
+  // ===== Modelo change =====
   $("modelo_base")?.addEventListener("change", () => {
     const model = str($("modelo_base").value);
 
@@ -264,11 +293,17 @@ async function init() {
     setOptions($("direccion"), meta.direcciones || DEFAULT_DIRECCIONES, "(opcional) Dirección");
   });
 
-  // Submit (acá sí aparece el loader inline)
+  // ===== Submit =====
   $("form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     setError("");
     hide($("resultWrap"));
+
+    // ✅ validaciones mínimas (evita anio 0 / kms NaN)
+    if (!$("marca")?.value) return setError("⚠️ Elegí una marca.");
+    if (!$("modelo_base")?.value) return setError("⚠️ Elegí un modelo.");
+    if (!$("anio")?.value) return setError("⚠️ Elegí un año.");
+    if (!$("kms")?.value) return setError("⚠️ Cargá los kms.");
 
     setPredictLoading(true);
 
