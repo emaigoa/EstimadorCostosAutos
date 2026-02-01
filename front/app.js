@@ -1,7 +1,7 @@
 // ===== CONFIG =====
 const API_URL = "https://estimadorcostosautos.onrender.com/predict";
-const INDEX_URL = "./data/index.json";
-const BRAND_URL = (brand) => `./data/brands/${encodeURIComponent(brand)}.json`;
+const INDEX_URL = "data/index.json";
+const BRAND_URL = (brand) => `data/brands/${encodeURIComponent(brand)}.json`;
 
 const INDEX_CACHE_KEY = "autos_index_cache_v1";
 const BRAND_CACHE_PREFIX = "autos_brand_cache_v1_";
