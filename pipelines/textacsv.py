@@ -103,7 +103,7 @@ def to_usd(moneda: str, precio: int):
     if moneda == "USD":
         return int(precio)
     if moneda == "ARS":
-        return float(precio) / float(USD_RATE)
+        return int(float(precio) / float(USD_RATE))
     return None
 
 def parse_year_km(line: str):

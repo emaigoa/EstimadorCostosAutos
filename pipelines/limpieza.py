@@ -32,6 +32,14 @@ def norm(s: str) -> str:
 def norm_key(s: str) -> str:
     return norm(s).lower()
 
+def brand_simplify(s: str) -> str:
+    """
+    Para comparar marcas ignorando guiones/espacios/puntos:
+    "Alfa Romeo" == "alfa-romeo"
+    """
+    s = norm_key(s)
+    return re.sub(r"[^a-z0-9]+", "", s)
+
 def safe_int(x, default=None):
     if x is None:
         return default
@@ -58,55 +66,97 @@ def parse_bool(x) -> bool:
 def extras_score(aire: bool, vidrio: bool) -> int:
     return (1 if aire else 0) + (1 if vidrio else 0)
 
-# ---------- MARCA (1 o 2 palabras) ----------
-def compile_brand_matcher(brands_raw):
-    """
-    Arma una lista de marcas normalizadas y ordenadas por longitud descendente
-    para matchear primero Alfa Romeo antes que Alfa, etc.
-    """
-    brands_norm = []
+# ======================================================
+# ✅ FIX de valores con letras rotas por "-"
+# ======================================================
+
+COMBUSTIBLE_FIX = {
+    "di-sel": "diesel",
+    "el-ctrico": "eléctrico",
+    "h-brido": "híbrido",
+    "h-brido-nafta": "híbrido-nafta",
+    # mild-hybrid queda igual
+}
+
+TRANSMISION_FIX = {
+    "autom-tica": "automática",
+    "autom-tica-secuencial": "automática secuencial",
+    "semiautom-tica": "semiautomática",
+}
+
+DIRECCION_FIX = {
+    "hidr-ulica": "hidráulica",
+    "el-ctrica": "eléctrica",
+    "mec-nica": "mecánica",
+}
+
+def normalize_combustible(raw: str) -> str:
+    c = norm_key(raw)
+    if not c:
+        return ""
+    # regla pedida: todo lo que contenga gnc -> nafta-gnc
+    if "gnc" in c:
+        return "nafta-gnc"
+    return COMBUSTIBLE_FIX.get(c, c)
+
+def normalize_transmision(raw: str) -> str:
+    t = norm_key(raw)
+    if not t:
+        return ""
+    t = TRANSMISION_FIX.get(t, t)
+    # fallback por siglas
+    if t == "mt":
+        return "manual"
+    if t == "at":
+        return "automática"
+    return t
+
+def normalize_direccion(raw: str) -> str:
+    d = norm_key(raw)
+    if not d:
+        return ""
+    return DIRECCION_FIX.get(d, d)
+
+# ======================================================
+# ✅ MATCH de marca al inicio (acepta espacio o guion)
+# ======================================================
+
+def compile_brand_patterns(brands_raw):
+    patterns = []
     for b in brands_raw:
-        b_n = norm(b)
-        if not b_n:
+        b_disp = norm(b)
+        if not b_disp:
             continue
-        brands_norm.append(b_n)
+        b_key = norm_key(b_disp)
+        tokens = re.split(r"[\s\-\.]+", b_key)
+        tokens = [t for t in tokens if t]
+        if not tokens:
+            continue
+        # permite separadores: espacios o guiones entre tokens
+        pat = r"^" + r"[\s\-]+".join(map(re.escape, tokens)) + r"(?:[\s\-]+|$)"
+        patterns.append((b_disp, re.compile(pat, flags=re.IGNORECASE)))
 
-    # orden por cantidad de caracteres (desc) -> matchea la más larga primero
-    brands_norm.sort(key=lambda s: len(s), reverse=True)
+    # más largas primero (ej: "Alfa Romeo" antes que "Alfa")
+    patterns.sort(key=lambda x: len(x[0]), reverse=True)
+    return patterns
 
-    # guardamos también la key (lower) para comparar fácil
-    brands_norm_key = [(b, norm_key(b)) for b in brands_norm]
-    return brands_norm_key
-
-BRANDS_MATCH = compile_brand_matcher(BRANDS_RAW)
+BRAND_PATTERNS = compile_brand_patterns(BRANDS_RAW)
 
 def detect_brand_prefix(modelo_full: str):
-    """
-    Devuelve (brand_in_text, rest_text) si matchea alguna marca al inicio.
-    Si no matchea, devuelve ("", modelo_full_norm).
-    """
     full = norm(modelo_full)
-    full_l = norm_key(full)
-
-    for b_display, b_key in BRANDS_MATCH:
-        # chequeo de prefijo con frontera de palabra
-        # ej: "Alfa Romeo " o "Mercedes-Benz "
-        if full_l.startswith(b_key + " "):
-            rest = full[len(b_display):].strip()
+    if not full:
+        return "", ""
+    for b_display, pat in BRAND_PATTERNS:
+        m = pat.match(full)
+        if m:
+            rest = full[m.end():].strip()
             return b_display, rest
-        if full_l == b_key:
-            return b_display, ""
-
     return "", full
 
 def split_model_version_from_full(modelo_full: str):
-    """
-    Usa marca detectada (1-2 palabras o más, ej mercedes-benz) y parte:
-      marca_texto | modelo | version
-    """
     brand_text, rest = detect_brand_prefix(modelo_full)
     if not brand_text:
-        return "", "", ""  # no se pudo detectar marca en el texto
+        return "", "", ""
 
     parts = rest.split()
     if len(parts) < 1:
@@ -116,6 +166,16 @@ def split_model_version_from_full(modelo_full: str):
     version = " ".join(parts[1:]).strip()
     return brand_text, modelo, version
 
+# ======================================================
+# ✅ NUEVO: filtro de versiones inválidas
+# ======================================================
+
+INVALID_VERSION_VALUES = {"", "nan", "none", "null", "na", "n/a", "-"}
+
+def is_invalid_version(version: str) -> bool:
+    v = norm_key(version)
+    return v in INVALID_VERSION_VALUES
+
 def main():
     best_by_key = {}
 
@@ -123,14 +183,12 @@ def main():
         reader = csv.DictReader(f)
 
         for r in reader:
-            # marca "real" (carpeta / csv)
-            marca_csv = norm_key(r.get("marca", ""))
-            combustible = norm_key(r.get("combustible", ""))
+            marca_csv = norm_key(r.get("marca", ""))  # ej: alfa-romeo
+            modelo_full = norm(r.get("modelo", ""))   # ej: "Alfa Romeo 156 2.4 ..."
 
-            modelo_full = norm(r.get("modelo", ""))
-
-            transmision = norm_key(r.get("transmision", ""))
-            direccion = norm_key(r.get("direccion", ""))
+            combustible = normalize_combustible(r.get("combustible", ""))
+            transmision = normalize_transmision(r.get("transmision", ""))
+            direccion = normalize_direccion(r.get("direccion", ""))
 
             aire = parse_bool(r.get("aire", False))
             vidrio = parse_bool(r.get("cristales", r.get("vidrio", False)))
@@ -145,14 +203,17 @@ def main():
             if anio is None or kms is None or precio_usd is None:
                 continue
 
-            # ✅ split con marca de 1 o 2 palabras (según listado)
+            # split
             brand_text, modelo, version = split_model_version_from_full(modelo_full)
             if not brand_text or not modelo:
                 continue
 
-            # ✅ filtro: la marca detectada en el texto debe coincidir con la marca del csv
-            # (esto elimina "baic ... chevrolet cruze ...")
-            if norm_key(brand_text) != marca_csv:
+            # ✅ ELIMINAR si version es "nan"/vacía/etc
+            if is_invalid_version(version):
+                continue
+
+            # ✅ comparación flexible: "Alfa Romeo" == "alfa-romeo"
+            if brand_simplify(brand_text) != brand_simplify(marca_csv):
                 continue
 
             row_out = {
@@ -169,7 +230,6 @@ def main():
                 "vidrio": vidrio,
             }
 
-            # ✅ mismo auto (incluye combustible + trans + direccion)
             key = (
                 marca_csv,
                 norm_key(modelo),
@@ -205,7 +265,7 @@ def main():
         writer.writeheader()
         writer.writerows(rows)
 
-    print(f"✅ Limpio + dedupe + marca 2 palabras OK: {len(rows)} filas -> {OUT_CSV.resolve()}")
+    print(f"✅ Limpio + dedupe + fixes '-' + gnc->nafta-gnc + sin version NaN: {len(rows)} filas -> {OUT_CSV.resolve()}")
 
 if __name__ == "__main__":
     main()

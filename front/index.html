@@ -5,239 +5,202 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Estimador de precios de autos</title>
 
-    <style>
-      :root {
-        color-scheme: dark;
-      }
-      body {
-        margin: 0;
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-        background: #0b1220;
-        color: #e5e7eb;
-      }
-      .container {
-        max-width: 920px;
-        margin: 0 auto;
-        padding: 24px;
-      }
-      .card {
-        background: rgba(255,255,255,0.06);
-        border: 1px solid rgba(255,255,255,0.10);
-        border-radius: 20px;
-        padding: 20px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-      }
-      h1 {
-        margin: 0 0 6px;
-        font-size: 22px;
-        letter-spacing: 0.2px;
-      }
-      .muted { color: rgba(229,231,235,0.7); font-size: 13px; }
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 12px;
-      }
-      @media (max-width: 860px) {
-        .grid { grid-template-columns: 1fr; }
-      }
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
 
-      label {
-        display: block;
-        font-size: 12px;
-        color: rgba(229,231,235,0.7);
-        margin-bottom: 6px;
-      }
-      select, input {
-        width: 100%;
-        box-sizing: border-box;
-        padding: 10px 12px;
-        border-radius: 12px;
-        border: 1px solid rgba(255,255,255,0.14);
-        background: rgba(255,255,255,0.07);
-        color: #e5e7eb;
-        outline: none;
-      }
-      input::placeholder { color: rgba(229,231,235,0.45); }
-
-      .row {
-        display: flex;
-        gap: 12px;
-        align-items: center;
-        flex-wrap: wrap;
-      }
-      .check {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 8px 10px;
-        border-radius: 12px;
-        border: 1px solid rgba(255,255,255,0.10);
-        background: rgba(255,255,255,0.04);
-      }
-      .check input {
-        width: auto;
-      }
-
-      button {
-        cursor: pointer;
-        border: 0;
-        padding: 10px 14px;
-        border-radius: 12px;
-        background: rgba(255,255,255,0.16);
-        color: #fff;
-        font-weight: 600;
-      }
-      button:hover { background: rgba(255,255,255,0.22); }
-      button:disabled { opacity: 0.5; cursor: not-allowed; }
-
-      .hidden { display: none !important; }
-
-      #loader {
-        margin-top: 12px;
-        padding: 10px 12px;
-        border-radius: 14px;
-        background: rgba(255,255,255,0.06);
-        border: 1px solid rgba(255,255,255,0.10);
-      }
-
-      #errBox {
-        margin-top: 12px;
-        padding: 10px 12px;
-        border-radius: 14px;
-        background: rgba(239,68,68,0.12);
-        border: 1px solid rgba(239,68,68,0.28);
-        color: #fecaca;
-        white-space: pre-wrap;
-      }
-
-      #resultWrap {
-        margin-top: 14px;
-      }
-      .resultGrid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 12px;
-      }
-      @media (max-width: 860px) {
-        .resultGrid { grid-template-columns: 1fr; }
-      }
-      .pill {
-        border-radius: 16px;
-        padding: 14px;
-        background: rgba(255,255,255,0.06);
-        border: 1px solid rgba(255,255,255,0.10);
-      }
-      .pill .k { font-size: 12px; color: rgba(229,231,235,0.7); }
-      .pill .v { font-size: 20px; font-weight: 800; margin-top: 6px; }
-      .hint { margin-top: 6px; font-size: 12px; color: rgba(229,231,235,0.6); }
-    </style>
+    <!-- Fix: options del select visibles -->
+    <link rel="stylesheet" href="./styles.css" />
   </head>
 
-  <body>
-    <div class="container">
-      <div class="card">
-        <h1>Estimador de precios de autos</h1>
-        <div class="muted">Carga rápida: primero índice liviano, y datos por marca cuando la elegís.</div>
+  <body class="min-h-screen bg-slate-950 text-slate-100">
+    <main class="mx-auto max-w-5xl px-4 py-10">
+      <section class="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
+        <header class="mb-6">
+          <h1 class="text-xl font-bold tracking-tight">Estimador de precios de autos</h1>
+          <p class="mt-1 text-sm text-slate-400">
+            Seleccioná marca/modelo/año, cargá kms y estimá el rango.
+          </p>
+        </header>
 
-        <div id="loader" class="hidden">Cargando...</div>
-        <div id="errBox" class="hidden"></div>
+        <!-- Error -->
+        <div
+          id="errBox"
+          class="hidden mb-4 whitespace-pre-wrap rounded-2xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200"
+        ></div>
 
-        <form id="form" class="mt">
-          <div class="grid" style="margin-top:16px">
+        <form id="form" class="space-y-5">
+          <div class="grid gap-4 md:grid-cols-3">
             <div>
-              <label for="marca">Marca *</label>
-              <select id="marca" required>
+              <label for="marca" class="mb-1 block text-xs font-medium text-slate-300">Marca *</label>
+              <select
+                id="marca"
+                required
+                class="w-full rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-2 text-slate-100 outline-none focus:border-indigo-400/60 focus:ring-4 focus:ring-indigo-500/10"
+              >
                 <option value="">Cargando marcas...</option>
               </select>
             </div>
 
             <div>
-              <label for="modelo_base">Modelo *</label>
-              <select id="modelo_base" required>
+              <label for="modelo_base" class="mb-1 block text-xs font-medium text-slate-300">Modelo *</label>
+              <select
+                id="modelo_base"
+                required
+                class="w-full rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-2 text-slate-100 outline-none focus:border-indigo-400/60 focus:ring-4 focus:ring-indigo-500/10"
+              >
                 <option value="">Elegí marca primero</option>
               </select>
             </div>
 
             <div>
-              <label for="anio">Año *</label>
-              <select id="anio" required>
+              <label for="anio" class="mb-1 block text-xs font-medium text-slate-300">Año *</label>
+              <select
+                id="anio"
+                required
+                class="w-full rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-2 text-slate-100 outline-none focus:border-indigo-400/60 focus:ring-4 focus:ring-indigo-500/10"
+              >
                 <option value="">Elegí modelo primero</option>
               </select>
-              <div id="anioHint" class="hint"></div>
+              <div id="anioHint" class="mt-1 text-xs text-slate-400"></div>
             </div>
 
             <div>
-              <label for="kms">Kilómetros *</label>
-              <input id="kms" type="number" min="0" step="1" placeholder="Ej: 120000" required />
+              <label for="kms" class="mb-1 block text-xs font-medium text-slate-300">Kilómetros *</label>
+              <input
+                id="kms"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="Ej: 120000"
+                required
+                class="w-full rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-2 text-slate-100 placeholder:text-slate-500 outline-none focus:border-indigo-400/60 focus:ring-4 focus:ring-indigo-500/10"
+              />
             </div>
 
             <div>
-              <label for="version_trim">Versión (opcional)</label>
-              <select id="version_trim">
+              <label for="version_trim" class="mb-1 block text-xs font-medium text-slate-300">Versión (opcional)</label>
+              <select
+                id="version_trim"
+                class="w-full rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-2 text-slate-100 outline-none focus:border-indigo-400/60 focus:ring-4 focus:ring-indigo-500/10"
+              >
                 <option value="">(opcional) Elegí modelo primero</option>
               </select>
             </div>
 
             <div id="tipoWrap" class="hidden">
-              <label for="tipo">Tipo (opcional)</label>
-              <select id="tipo">
+              <label for="tipo" class="mb-1 block text-xs font-medium text-slate-300">Tipo (opcional)</label>
+              <select
+                id="tipo"
+                class="w-full rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-2 text-slate-100 outline-none focus:border-indigo-400/60 focus:ring-4 focus:ring-indigo-500/10"
+              >
                 <option value="">(opcional) Elegí tipo</option>
               </select>
             </div>
 
             <div>
-              <label for="combustible">Combustible (opcional)</label>
-              <select id="combustible"></select>
+              <label for="combustible" class="mb-1 block text-xs font-medium text-slate-300">Combustible (opcional)</label>
+              <select
+                id="combustible"
+                class="w-full rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-2 text-slate-100 outline-none focus:border-indigo-400/60 focus:ring-4 focus:ring-indigo-500/10"
+              ></select>
             </div>
 
             <div>
-              <label for="transmision">Transmisión (opcional)</label>
-              <select id="transmision"></select>
+              <label for="transmision" class="mb-1 block text-xs font-medium text-slate-300">Transmisión (opcional)</label>
+              <select
+                id="transmision"
+                class="w-full rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-2 text-slate-100 outline-none focus:border-indigo-400/60 focus:ring-4 focus:ring-indigo-500/10"
+              ></select>
             </div>
 
             <div>
-              <label for="direccion">Dirección (opcional)</label>
-              <select id="direccion"></select>
+              <label for="direccion" class="mb-1 block text-xs font-medium text-slate-300">Dirección (opcional)</label>
+              <select
+                id="direccion"
+                class="w-full rounded-2xl border border-white/10 bg-slate-900/60 px-3 py-2 text-slate-100 outline-none focus:border-indigo-400/60 focus:ring-4 focus:ring-indigo-500/10"
+              ></select>
             </div>
           </div>
 
-          <div class="row" style="margin-top:14px">
-            <div class="check">
-              <input id="aireChk" type="checkbox" />
-              <label for="aireChk" style="margin:0">Aire</label>
-            </div>
+          <div class="flex flex-wrap items-center gap-3">
+            <label class="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200">
+              <input id="aireChk" type="checkbox" class="h-4 w-4 accent-indigo-500" />
+              Aire
+            </label>
 
-            <div class="check">
-              <input id="cristalesChk" type="checkbox" />
-              <label for="cristalesChk" style="margin:0">Cristales eléctricos</label>
-            </div>
+            <label class="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200">
+              <input id="cristalesChk" type="checkbox" class="h-4 w-4 accent-indigo-500" />
+              Cristales eléctricos
+            </label>
 
-            <button type="submit">Estimar</button>
+            <button
+              id="btnSubmit"
+              type="submit"
+              class="ml-auto rounded-2xl bg-indigo-500/80 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Estimar
+            </button>
+          </div>
+
+          <!-- LOADER INLINE (solo al predecir) -->
+          <div id="predictLoader" class="hidden pt-2">
+            <div class="rounded-3xl border border-white/10 bg-black p-4">
+              <div class="text-sm font-semibold text-slate-200">Cargando estimación......</div>
+
+              <!-- 👇 Tu GIF local -->
+              <div class="mt-3 flex items-center justify-center">
+                <img
+                  src="./assets/loading.gif"
+                  alt="Cargando estimación"
+                  class="w-16 rounded-xl select-none"
+                  draggable="false"
+                />
+                <img
+                  src="./assets/loading.gif"
+                  alt="Cargando estimación"
+                  class="w-16 rounded-xl select-none"
+                  draggable="false"
+                />
+                <img
+                  src="./assets/loading.gif"
+                  alt="Cargando estimación"
+                  class="w-16 rounded-xl select-none"
+                  draggable="false"
+                />
+              </div>
+
+              <div class="mt-3">
+                
+                <div class="mt-2 text-[11px] text-center text-slate-500">
+                  Si tarda demasiado, probá de nuevo (La primera vez siempre tarda más).
+                </div>
+              </div>
+            </div>
           </div>
         </form>
 
-        <div id="resultWrap" class="hidden">
-          <div class="muted" style="margin-top:14px">Rango estimado (P10/P50/P90):</div>
-          <div class="resultGrid" style="margin-top:10px">
-            <div class="pill">
-              <div class="k">P10 (bajo)</div>
-              <div id="p10" class="v">—</div>
+        <!-- Result -->
+        <section id="resultWrap" class="hidden mt-6">
+          <p class="text-sm text-slate-400">Rango estimado:</p>
+
+          <div class="mt-3 grid gap-4 md:grid-cols-3">
+            <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
+              <div class="text-xs text-slate-400">Minimo</div>
+              <div id="p10" class="mt-2 text-2xl font-extrabold">—</div>
             </div>
-            <div class="pill">
-              <div class="k">P50 (medio)</div>
-              <div id="p50" class="v">—</div>
+            <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
+              <div class="text-xs text-slate-400">Medio</div>
+              <div id="p50" class="mt-2 text-2xl font-extrabold">—</div>
             </div>
-            <div class="pill">
-              <div class="k">P90 (alto)</div>
-              <div id="p90" class="v">—</div>
+            <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
+              <div class="text-xs text-slate-400">Maximo</div>
+              <div id="p90" class="mt-2 text-2xl font-extrabold">—</div>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
+        </section>
+      </section>
+    </main>
 
-    <!-- IMPORTANTE: defer para que el HTML renderice aunque el JS falle -->
     <script defer src="./app.js"></script>
   </body>
 </html>

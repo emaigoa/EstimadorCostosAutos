@@ -1,0 +1,8 @@
+/* Fix cross-browser: dropdown options visibles */
+select option, select optgroup {
+  background: #0b1220;
+  color: #e5e7eb;
+}
+select option[value=""] {
+  color: rgba(229,231,235,0.70);
+}
